@@ -1,0 +1,28 @@
+[project]
+name = "4thealth"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0,<4",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "bcrypt>=4.1",
+    "apscheduler>=3.11.2",
+    "openpyxl>=3.1.5",
+    "pysnmp>=7.1.27",
+    "cryptography>=49.0.0",
+    "pyzipper>=0.4.0",
+    "paramiko>=5.0.0",
+]
+
+[project.optional-dependencies]
+prod = ["gunicorn>=22"]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.16",
+]

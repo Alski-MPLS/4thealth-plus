@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Rule Validation — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Rule Validation</h2>
+    <span class="last-updated" id="rrStatusLine"></span>
+  </div>
+  <div class="page-header-actions">
+    <button class="btn btn-secondary" id="rrClearBtn">&#10005; Clear All</button>
+  </div>
+</div>
+
+<!-- ── Step 1: Flow Entry ───────────────────────────────────────────────── -->
+<div class="rr-section">
+  <div class="rr-section-title">1 — Define Flows</div>
+
+  <div class="rr-import-row">
+    <label class="btn btn-secondary" style="cursor:pointer">
+      &#8679; Import CSV / XLSX
+      <input type="file" id="rrImportFile" accept=".csv,.xlsx,.xls" style="display:none" />
+    </label>
+    <span class="text-muted" style="font-size:.8rem">
+      Columns: source, destination, port/service, comment (optional)
+    </span>
+    <span id="rrImportStatus" class="text-muted" style="font-size:.8rem"></span>
+  </div>
+
+  <div class="rr-manual-form">
+    <div class="rr-manual-row">
+      <div class="form-group" style="flex:1">
+        <label for="rrSrc">Source IP / Subnet</label>
+        <textarea id="rrSrc" class="form-control rr-ip-textarea" rows="3"
+          placeholder="10.1.2.3&#10;10.1.2.0/24&#10;(one per line, or comma-separated)"></textarea>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label for="rrDst">Destination IP / Subnet</label>
+        <textarea id="rrDst" class="form-control rr-ip-textarea" rows="3"
+          placeholder="10.5.6.7&#10;10.5.6.0/24&#10;(one per line, or comma-separated)"></textarea>
+      </div>
+      <div class="form-group" style="flex:0 0 160px">
+        <label for="rrSvc">Port / Service</label>
+        <input type="text" id="rrSvc" class="form-control" placeholder="e.g. 443, https, tcp/8443" />
+        <div style="margin-top:.5rem">
+          <label for="rrComment">Comment (optional)</label>
+          <input type="text" id="rrComment" class="form-control" placeholder="Reason for request" />
+        </div>
+      </div>
+      <div class="form-group" style="flex:0 0 auto;align-self:flex-start;padding-top:1.6rem">
+        <button class="btn btn-primary" id="rrAddFlowBtn">Add</button>
+      </div>
+    </div>
+    <div style="font-size:.78rem;color:var(--text-muted);margin-top:.25rem">
+      Enter multiple sources or destinations (one per line or comma-separated) to add all combinations at once.
+    </div>
+  </div>
+
+  <div id="rrFlowTableWrap" style="display:none;margin-top:.75rem">
+    <div class="table-wrapper">
+      <table class="data-table" id="rrFlowTable">
+        <thead>
+          <tr>
+            <th style="width:3rem">#</th>
+            <th>Source</th>
+            <th>Destination</th>
+            <th>Service / Port</th>
+            <th>Comment</th>
+            <th style="width:3rem"></th>
+          </tr>
+        </thead>
+        <tbody id="rrFlowTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Step 2: Package Selection ───────────────────────────────────────── -->
+<div class="rr-section">
+  <div class="rr-section-title">2 — Select Policy Packages</div>
+
+  <div class="rr-selector-row">
+    <div class="form-group" style="flex:0 0 200px">
+      <label for="rrAdom">ADOM</label>
+      <select id="rrAdom" class="form-select">
+        <option value="">— select ADOM —</option>
+      </select>
+    </div>
+    <div class="form-group" style="flex:0 0 260px">
+      <label for="rrPackage">Policy Package</label>
+      <select id="rrPackage" class="form-select" disabled>
+        <option value="">— select package —</option>
+      </select>
+    </div>
+    <div class="form-group" style="flex:0 0 auto;align-self:flex-end">
+      <button class="btn btn-secondary" id="rrAddPkgBtn" disabled>Add Package</button>
+    </div>
+  </div>
+
+  <div id="rrPkgTableWrap" style="display:none;margin-top:.75rem">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:3rem">#</th>
+            <th>ADOM</th>
+            <th>Policy Package</th>
+            <th style="width:3rem"></th>
+          </tr>
+        </thead>
+        <tbody id="rrPkgTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Review button ───────────────────────────────────────────────────── -->
+<div style="margin:.5rem 0 1.25rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+  <button class="btn btn-primary" id="rrReviewBtn" disabled>&#9654; Review</button>
+  <span id="rrRunning" class="text-muted" style="display:none;font-style:italic">Analysing…</span>
+  <span id="rrZoneStatus" class="rr-zone-badge" style="display:none"></span>
+</div>
+
+<div id="rrError" class="alert alert-danger" style="display:none"></div>
+
+<!-- ── Step 3: Results ─────────────────────────────────────────────────── -->
+<div id="rrResults" style="display:none;margin-top:.5rem">
+  <div class="rr-section-title">3 — Review Results</div>
+
+  <div id="rrSummaryBar" class="rr-summary-bar" style="margin-bottom:1rem"></div>
+
+  <!-- Result cards (zone-script style) -->
+  <div id="rrResultCards"></div>
+
+  <!-- CLI output panel -->
+  <div id="rrCliPanel" style="display:none;margin-top:1.25rem">
+    <div class="rr-section-title" style="margin-bottom:.5rem">FortiOS CLI — New / Modified Rules</div>
+    <div class="rr-cli-toolbar">
+      <button class="btn btn-sm btn-secondary" id="rrCopyCliBtn">&#9112; Copy All</button>
+      <button class="btn btn-sm btn-secondary" id="rrDownloadCliBtn">&#8659; Download</button>
+    </div>
+    <pre id="rrCliOutput" class="rr-cli-block"></pre>
+  </div>
+</div>
+
+<!-- ── Detail modal ────────────────────────────────────────────────────── -->
+<div id="rrDetailModal" class="modal-overlay" style="display:none">
+  <div class="modal-box rr-modal-box">
+    <div class="modal-header">
+      <span id="rrModalTitle" class="modal-title">Flow Detail</span>
+      <button class="modal-close" id="rrModalClose">&#10005;</button>
+    </div>
+    <div id="rrModalBody" class="rr-modal-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rule_review.js') }}?v=3"></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+---
+# Group variables for the 4thealth_prod inventory group.
+# Override these in AAP as extra_vars or in a vault-encrypted file
+# for secrets (smtp_host, email_from, email_to).
+#
+# Sensitive values (credentials, email addresses) should be stored
+# in an AAP credential or Vault-encrypted vars file — do NOT commit
+# real values here.
+
+# ── Application ──────────────────────────────────────────────────────────────
+app_host: 4thealth-prod.yourdomain.com   # FQDN used for HTTPS checks and TLS probe
+app_port: 8100                           # Gunicorn internal port
+app_https_port: 443                      # Nginx public HTTPS port
+app_path: /opt/4thealth
+app_log_dir: /var/log/4thealth
+app_service: 4thealth
+nginx_service: nginx
+
+# ── Health thresholds ─────────────────────────────────────────────────────────
+disk_warn_percent: 80
+disk_crit_percent: 90
+cert_warn_days: 30          # warn when cert expires in ≤ 30 days
+cert_crit_days: 7           # critical when cert expires in ≤ 7 days
+check_window_minutes: 60    # journald error scan window
+summary_stale_hours: 26     # summary job considered stale after this many hours
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+# Store smtp_host, email_from, and email_to in AAP extra_vars or a vault file.
+# smtp_host: smtp.yourdomain.com
+smtp_port: 25
+# email_from: noreply-monitoring@yourdomain.com
+# email_to: network-ops-team@yourdomain.com
+email_subject_prefix: "[4THealth]"

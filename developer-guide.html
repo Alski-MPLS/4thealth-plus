@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4THealth — Developer Guide</title>
+  <style>
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --border: #dde1ea;
+      --text: #1a1d26;
+      --muted: #5a6070;
+      --accent: #2563eb;
+      --accent-light: #dbeafe;
+      --green: #15803d;
+      --green-bg: #dcfce7;
+      --yellow: #92400e;
+      --yellow-bg: #fef9c3;
+      --red: #991b1b;
+      --red-bg: #fee2e2;
+      --code-bg: #f1f3f8;
+      --topbar: #1e2130;
+      --topbar-text: #e2e6f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    /* ── Top bar ── */
+    header {
+      background: var(--topbar);
+      color: var(--topbar-text);
+      padding: 0 2rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header .brand { font-size: 1.1rem; font-weight: 700; letter-spacing: .02em; }
+    header .brand span { color: #60a5fa; }
+    header .subtitle { font-size: .85rem; color: #94a3b8; margin-left: auto; }
+
+    /* ── Layout ── */
+    .wrapper { display: flex; min-height: calc(100vh - 52px); }
+    nav.sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 0;
+      position: sticky;
+      top: 52px;
+      height: calc(100vh - 52px);
+      overflow-y: auto;
+    }
+    nav.sidebar ul { list-style: none; }
+    nav.sidebar li a {
+      display: block;
+      padding: .45rem 1.5rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .875rem;
+      border-left: 3px solid transparent;
+    }
+    nav.sidebar li a:hover { color: var(--accent); background: var(--accent-light); }
+    nav.sidebar li.section {
+      padding: .9rem 1.5rem .3rem;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    main {
+      flex: 1;
+      padding: 2.5rem 3rem;
+      max-width: 900px;
+    }
+
+    /* ── Typography ── */
+    h1 { font-size: 1.9rem; margin-bottom: .35rem; }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; padding-bottom: .4rem; border-bottom: 2px solid var(--border); }
+    h3 { font-size: 1.05rem; margin: 1.75rem 0 .5rem; color: var(--accent); }
+    h4 { font-size: .95rem; margin: 1.25rem 0 .35rem; }
+    p { margin-bottom: .85rem; }
+    ul, ol { margin: .5rem 0 .85rem 1.5rem; }
+    li { margin-bottom: .3rem; }
+    a { color: var(--accent); }
+    strong { font-weight: 600; }
+
+    /* ── Callouts ── */
+    .callout {
+      border-radius: 6px;
+      padding: .85rem 1.1rem;
+      margin: 1rem 0 1.25rem;
+      font-size: .9rem;
+    }
+    .callout.info  { background: var(--accent-light); border-left: 4px solid var(--accent); }
+    .callout.warn  { background: var(--yellow-bg);    border-left: 4px solid #d97706; }
+    .callout.good  { background: var(--green-bg);     border-left: 4px solid #16a34a; }
+    .callout.danger{ background: var(--red-bg);       border-left: 4px solid #dc2626; }
+    .callout p { margin: 0; }
+
+    /* ── Code ── */
+    code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .1em .4em;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: .875em;
+    }
+    pre {
+      background: #1e2130;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 1.1rem 1.3rem;
+      overflow-x: auto;
+      margin: .75rem 0 1.25rem;
+      font-size: .85rem;
+      line-height: 1.7;
+    }
+    pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; margin: .75rem 0 1.25rem; font-size: .875rem; }
+    th { background: var(--code-bg); font-weight: 600; text-align: left; padding: .55rem .75rem; border: 1px solid var(--border); }
+    td { padding: .5rem .75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: #fafbfd; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .15em .55em;
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+    .badge.admin  { background: #fde68a; color: #78350f; }
+    .badge.viewer { background: #dbeafe; color: #1e40af; }
+    .badge.get    { background: #d1fae5; color: #065f46; }
+    .badge.post   { background: #fef9c3; color: #713f12; }
+    .badge.put    { background: #ede9fe; color: #4c1d95; }
+    .badge.del    { background: #fee2e2; color: #7f1d1d; }
+
+    /* ── Diagram ── */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      margin: .75rem 0 1.25rem;
+      white-space: pre;
+    }
+
+    /* ── Section divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    /* ── Print ── */
+    @media print {
+      nav.sidebar { display: none; }
+      header .subtitle { display: none; }
+      main { max-width: 100%; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Forti<span>Health</span></div>
+  <div class="subtitle">Developer Guide — v0.2 &nbsp;|&nbsp; Updated May 2026</div>
+</header>
+
+<div class="wrapper">
+
+  <!-- ── Sidebar nav ── -->
+  <nav class="sidebar">
+    <ul>
+      <li class="section">Overview</li>
+      <li><a href="#overview">What is 4THealth?</a></li>
+      <li><a href="#architecture">Application Architecture</a></li>
+      <li><a href="#data-flow">Data Flow</a></li>
+
+      <li class="section">Development</li>
+      <li><a href="#dev-quickstart">Quick Start</a></li>
+      <li><a href="#dev-auth">Local Authentication</a></li>
+      <li><a href="#dev-users">User &amp; Group Management</a></li>
+      <li><a href="#dev-config">Configuration Reference</a></li>
+      <li><a href="#dev-logging">Application Logging</a></li>
+
+      <li class="section">Production</li>
+      <li><a href="#prod-overview">Production Overview</a></li>
+      <li><a href="#prod-ad">Active Directory Auth</a></li>
+      <li><a href="#prod-rbac">RBAC &amp; Tab Permissions</a></li>
+      <li><a href="#prod-deployment">Deployment Checklist</a></li>
+
+      <li class="section">API Reference</li>
+      <li><a href="#api-auth">Auth</a></li>
+      <li><a href="#api-dashboard">Dashboard / Infrastructure</a></li>
+      <li><a href="#api-firewalls">Firewalls</a></li>
+      <li><a href="#api-hygiene">Rule Review</a></li>
+      <li><a href="#api-admin">Admin</a></li>
+
+      <li class="section">Extending</li>
+      <li><a href="#module-design">Module Design</a></li>
+      <li><a href="#adding-page">Adding a New Tab/Module</a></li>
+      <li><a href="#shared-tools">Shared Tools Reference</a></li>
+      <li><a href="#adding-check">Adding a Hygiene Check</a></li>
+      <li><a href="#frontend">Frontend Conventions</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <main>
+
+    <!-- ════════════ OVERVIEW ════════════ -->
+    <h1>4THealth Developer Guide</h1>
+    <p>This document is the technical reference for developers contributing to, deploying, or extending 4THealth. It covers how the application is structured, how each authentication mode works, all API endpoints, and step-by-step procedures for both local development and production deployment.</p>
+
+    <div class="callout info">
+      <p><strong>Read-only by design.</strong> 4THealth never writes to FortiManager or any FortiGate device. Every API call uses <code>get</code> or <code>monitor</code> methods only.</p>
+    </div>
+
+    <hr id="overview" />
+    <h2>What is 4THealth?</h2>
+    <p>4THealth is a Flask web dashboard that surfaces live health data for a Fortinet infrastructure stack. All data comes through <strong>FortiManager's JSON-RPC API</strong> — the app has no direct connection to individual FortiGate firewalls.</p>
+
+    <p>It provides six main views:</p>
+    <table>
+      <tr><th>View</th><th>What it shows</th></tr>
+      <tr><td><strong>Dashboard</strong></td><td>Infrastructure health cards for FortiManager (×2), FortiAnalyzer (×2), and FortiCollector (×2) — hostname, version, serial, HA role, CPU %, memory %, disk</td></tr>
+      <tr><td><strong>Firewalls</strong></td><td>Per-ADOM device list with health status, paginated table, full device detail modal (interfaces, routes, BGP, OSPF, IPsec)</td></tr>
+      <tr><td><strong>Device Versions</strong></td><td>Version distribution chart per ADOM with clickable filtering and CSV/JSON export</td></tr>
+      <tr><td><strong>Rule Review</strong></td><td>Policy-package audit — 7 read-only checks with paginated findings and CSV/JSON/PDF export</td></tr>
+      <tr><td><strong>Admin</strong></td><td>Group and tab-permission management; in-memory application log viewer</td></tr>
+      <tr><td><strong>Help</strong></td><td>In-app contextual help panel accessible from the nav bar</td></tr>
+    </table>
+
+    <hr id="architecture" />
+    <h2>Application Architecture</h2>
+
+    <div class="diagram">fortigate-health/
+├── app/
+│   ├── __init__.py              Flask app factory — module list drives blueprint registration
+│   ├── config.py                Loads .env into a Config object via python-dotenv
+│   ├── registry.py              ★ Nav tab registry — each blueprint self-registers here
+│   ├── decorators.py            ★ Shared route decorators (login_required, tab_required,
+│   │                              admin_required) — import these, don't redefine
+│   ├── fmg_helpers.py           ★ make_client() factory — shared FMG client helper
+│   ├── auth.py                  bcrypt local auth + prepared AD/LDAP hook
+│   ├── app_logger.py            Thread-safe in-memory ring-buffer logger (2 000 entries)
+│   ├── groups.py                Group CRUD backed by groups.json; KNOWN_TABS auto-synced
+│   ├── fmg_client.py            FortiManager JSON-RPC client (context manager)
+│   ├── hygiene.py               Rule hygiene engine — 7 read-only policy checks
+│   ├── routes/
+│   │   ├── auth_routes.py       /login  /logout
+│   │   ├── dashboard_routes.py  /  /firewalls  /versions  — registers 3 nav tabs
+│   │   ├── api_routes.py        /api/*  (JSON data layer, consumed by JS)
+│   │   ├── admin_routes.py      /admin  /admin/api/*  (admin role only)
+│   │   ├── hygiene_routes.py    /hygiene  /api/hygiene/*  — registers rule_hygiene tab
+│   │   └── my_module.py         ← new modules live here (see Adding a New Tab/Module)
+│   ├── templates/
+│   │   ├── base.html            Shared layout — nav rendered from registry, no manual edits
+│   │   ├── login.html
+│   │   ├── dashboard.html
+│   │   ├── firewalls.html
+│   │   ├── versions.html
+│   │   ├── hygiene.html
+│   │   ├── admin.html
+│   │   └── my_module.html       ← new page templates
+│   └── static/
+│       ├── css/style.css        CSS custom properties — light &amp; dark themes
+│       └── js/
+│           ├── dashboard.js     Renders infrastructure cards, auto-refresh timer
+│           ├── firewalls.js     Device table, detail modal, route widget, search
+│           ├── versions.js      Version chart, filterable table, export
+│           ├── hygiene.js       Check selector, paginated findings, export (CSV/JSON/PDF)
+│           ├── admin.js         Group editor, log viewer
+│           ├── help.js          In-app help modal (5 tabs)
+│           └── my_module.js     ← new module JavaScript
+├── wsgi.py                      WSGI entry point — SSL auto-detect, dev/prod start
+├── manage_users.py              CLI: add/delete/list users, generate SECRET_KEY
+├── groups.json                  Group definitions (gitignored — copy from groups.example.json)
+├── users.json                   User bcrypt hashes (git-ignored)
+├── pyproject.toml               Project metadata + uv dependencies
+├── .env                         Local configuration (git-ignored)
+├── .env.example                 Template for .env
+└── production.md                Full production deployment guide
+
+★ = shared infrastructure modules added to enable plug-in style extension</div>
+
+    <h3>Blueprint Registration</h3>
+    <p><code>app/__init__.py</code> creates the Flask app via the <code>create_app()</code> factory. Blueprints are loaded from a list in <code>_BLUEPRINT_MODULES</code> — adding a new module is one line there:</p>
+    <pre><code>_BLUEPRINT_MODULES = [
+    "app.routes.auth_routes",
+    "app.routes.dashboard_routes",
+    "app.routes.api_routes",
+    "app.routes.admin_routes",
+    "app.routes.hygiene_routes",
+    "app.routes.my_new_module",   # ← add here only
+]</code></pre>
+    <p>The factory also injects three Jinja2 template globals after every blueprint is loaded:</p>
+    <table>
+      <tr><th>Global</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>current_role</code></td><td>str</td><td><code>"admin"</code> or <code>"viewer"</code> from session</td></tr>
+      <tr><td><code>allowed_tabs</code></td><td>set[str]</td><td>Tab keys the current user can access</td></tr>
+      <tr><td><code>nav_registry</code></td><td>dict</td><td>Full registry snapshot used by <code>base.html</code> to render the nav bar — populated automatically by <code>registry.register()</code> calls in each blueprint</td></tr>
+    </table>
+
+    <hr id="data-flow" />
+    <h2>Data Flow</h2>
+
+    <div class="diagram">Browser
+  │
+  │  HTTPS (Nginx → Gunicorn in production; wsgi.py in dev)
+  ▼
+Flask Route  ──►  FMGClient.get_*()
+                      │
+                      │  JSON-RPC  POST /jsonrpc
+                      │  (Bearer token, session-based)
+                      ▼
+                  FortiManager
+                      │
+                      │  /sys/proxy/json  (REST proxy to managed device)
+                      ▼
+                  FortiGate device  (read-only REST monitor endpoints)
+                      │
+                      └──► Response unwrapped through two envelope layers
+                           and returned to the Flask route as a Python dict</div>
+
+    <h3>FortiManager Client Design</h3>
+    <p><code>app/fmg_client.py</code> implements a context manager:</p>
+    <pre><code>with FMGClient(host, username, password, verify_ssl=False) as client:
+    devices = client.get_devices("root")
+    health  = client.get_device_health("root", "fw-prod-01")</code></pre>
+
+    <p>On <code>__enter__</code> the client calls <code>login()</code> to obtain a session token via FortiManager's <code>/jsonrpc</code> endpoint. On <code>__exit__</code> it calls <code>logout()</code>. All device telemetry flows through the FortiManager <em>proxy</em> endpoint — the app never directly connects to individual firewalls.</p>
+
+    <p>The proxy envelope is double-wrapped (FMG adds an outer envelope; the device adds an inner one). The client's <code>_proxy()</code> method unwraps both layers transparently.</p>
+
+    <h3>Health Status Model</h3>
+    <p>Three-tier status is applied after metrics are collected:</p>
+    <table>
+      <tr><th>Status</th><th>Condition</th><th>CSS class</th></tr>
+      <tr><td>🟢 Green</td><td>CPU &lt; CPU_WARN and MEM &lt; MEM_WARN</td><td><code>status-green</code></td></tr>
+      <tr><td>🟡 Yellow</td><td>Either metric crossed WARN threshold</td><td><code>status-yellow</code></td></tr>
+      <tr><td>🔴 Red</td><td>Either metric crossed CRIT threshold, or device unreachable</td><td><code>status-red</code></td></tr>
+    </table>
+    <p>Default thresholds: CPU 70% warn / 90% crit; MEM 75% warn / 90% crit. Override in <code>.env</code>.</p>
+
+    <!-- ════════════ DEVELOPMENT ════════════ -->
+    <hr id="dev-quickstart" />
+    <h2>Quick Start — Local Development</h2>
+
+    <div class="callout info">
+      <p>Development uses <strong>local bcrypt accounts</strong> stored in <code>users.json</code>. No Active Directory or network connectivity to Fortinet devices is required to start the server, but you will need FortiManager credentials to see live data.</p>
+    </div>
+
+    <h3>Prerequisites</h3>
+    <ul>
+      <li>Python 3.11+</li>
+      <li><a href="https://docs.astral.sh/uv/">uv</a> — <code>brew install uv</code> on macOS</li>
+      <li>A <code>.env</code> file (see Configuration Reference below)</li>
+    </ul>
+
+    <h3>Step-by-Step</h3>
+    <pre><code># 1. Install dependencies into an isolated .venv
+uv sync
+
+# 2. Copy and edit the environment file
+cp .env.example .env
+# Minimum required: set SECRET_KEY, FMG_PASSWORD
+
+# 3. Generate a strong SECRET_KEY
+uv run python manage_users.py secret
+# Copy the output into .env as: SECRET_KEY=&lt;value&gt;
+
+# 4. Create the first admin account
+uv run python manage_users.py add admin --role admin
+
+# 5. Start the dev server
+uv run python wsgi.py
+# Listening on http://localhost:5000
+
+# Optional: enable HTTPS locally
+mkdir -p certs
+openssl req -x509 -newkey rsa:4096 -nodes \
+  -keyout certs/key.pem -out certs/cert.pem \
+  -days 3650 -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+uv run python wsgi.py
+# Listening on https://localhost:5443</code></pre>
+
+    <div class="callout warn">
+      <p><strong>Never prefix commands with <code>python</code> directly.</strong> Always use <code>uv run python …</code> so the correct virtual environment is used. Do not use <code>pip install</code> — use <code>uv add &lt;package&gt;</code> to keep <code>uv.lock</code> in sync.</p>
+    </div>
+
+    <hr id="dev-auth" />
+    <h2>Local Authentication (Development Mode)</h2>
+
+    <p>In development (and as an emergency fallback in production), authentication is handled by <code>app/auth.py</code> using <strong>bcrypt password hashing</strong>.</p>
+
+    <h3>How It Works</h3>
+    <ol>
+      <li>User submits username + password via <code>POST /login</code>.</li>
+      <li><code>auth_routes.py</code> calls <code>authenticate(username, password)</code>.</li>
+      <li><code>auth.py</code> loads <code>users.json</code>, finds the user record, and calls <code>bcrypt.checkpw()</code>.</li>
+      <li>On success, the session is populated: <code>session["user"]</code>, <code>session["role"]</code>, <code>session["allowed_tabs"]</code>.</li>
+      <li>The user is redirected to the <code>?next=</code> parameter (safe open-redirect validation applied) or <code>/</code>.</li>
+    </ol>
+
+    <h3>Session Contents</h3>
+    <table>
+      <tr><th>Key</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>session["user"]</code></td><td>str</td><td>Username</td></tr>
+      <tr><td><code>session["role"]</code></td><td>str</td><td><code>"admin"</code> or <code>"viewer"</code></td></tr>
+      <tr><td><code>session["allowed_tabs"]</code></td><td>list[str]</td><td>Tab keys the user may access (empty for admin — admin gets all)</td></tr>
+    </table>
+
+    <p>Sessions are signed with <code>SECRET_KEY</code> using Flask's itsdangerous library. Clients cannot forge or tamper with the session cookie.</p>
+
+    <hr id="dev-users" />
+    <h2>User &amp; Group Management (Development)</h2>
+
+    <h3>manage_users.py CLI</h3>
+    <pre><code># Add a user (prompts for password)
+uv run python manage_users.py add &lt;username&gt; --role admin|viewer
+
+# List users
+uv run python manage_users.py list
+
+# Delete a user
+uv run python manage_users.py delete &lt;username&gt;
+
+# Generate a SECRET_KEY value
+uv run python manage_users.py secret</code></pre>
+
+    <p>User records are stored in <code>users.json</code> (git-ignored). Each record contains the bcrypt password hash and role. Passwords are never stored in plaintext.</p>
+
+    <h3>Groups and Tab Permissions</h3>
+    <p>Groups are managed through the <strong>Admin → Groups &amp; Permissions</strong> UI. Group definitions are stored in <code>groups.json</code> (gitignored — copy from <code>groups.example.json</code> to get started).</p>
+
+    <p>The logic in <code>app/groups.py</code>:</p>
+    <ul>
+      <li><code>admin</code> role → always gets all tabs regardless of group membership.</li>
+      <li><code>viewer</code> role → gets the <strong>union</strong> of <code>allowed_tabs</code> across every group they belong to.</li>
+      <li>A viewer with no group memberships sees no content tabs.</li>
+    </ul>
+
+    <h3>KNOWN_TABS Registry</h3>
+    <p>All navigable tabs are registered in <code>app/groups.py</code>:</p>
+    <pre><code>KNOWN_TABS: dict[str, str] = {
+    "dashboard":    "Dashboard",
+    "firewalls":    "Firewalls",
+    "versions":     "Device Versions",
+    "rule_hygiene": "Rule Review",
+}</code></pre>
+    <p>Adding a tab here makes it appear immediately in the Admin group-editor checklist. Protect the corresponding route with <code>@tab_required("your_tab_key")</code>.</p>
+
+    <hr id="dev-config" />
+    <h2>Configuration Reference</h2>
+
+    <h3>Core</h3>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>SECRET_KEY</code></td><td>required</td><td>Flask session signing key. Generate with <code>manage_users.py secret</code></td></tr>
+      <tr><td><code>COOKIE_SECURE</code></td><td><code>auto</code></td><td><code>true</code>: HTTPS only. <code>false</code>: HTTP. <code>auto</code>: follows cert presence</td></tr>
+      <tr><td><code>PORT</code></td><td><code>5000</code>/<code>5443</code></td><td>Listening port (auto-selects 5443 when cert files are present)</td></tr>
+      <tr><td><code>SSL_CERT</code></td><td><code>certs/cert.pem</code></td><td>Path to TLS certificate</td></tr>
+      <tr><td><code>SSL_KEY</code></td><td><code>certs/key.pem</code></td><td>Path to TLS private key</td></tr>
+    </table>
+
+    <h3>FortiManager / Infrastructure Hosts</h3>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>FMG_PRIMARY_HOST</code></td><td><code>10.0.0.1</code></td><td>FortiManager primary</td></tr>
+      <tr><td><code>FMG_BACKUP_HOST</code></td><td><code>10.0.0.2</code></td><td>FortiManager secondary</td></tr>
+      <tr><td><code>FAZ_PRIMARY_HOST</code></td><td><code>10.0.0.3</code></td><td>FortiAnalyzer primary</td></tr>
+      <tr><td><code>FAZ_BACKUP_HOST</code></td><td><code>10.0.0.4</code></td><td>FortiAnalyzer secondary</td></tr>
+      <tr><td><code>FCT_PRIMARY_HOST</code></td><td><code>10.0.0.5</code></td><td>FortiCollector #1</td></tr>
+      <tr><td><code>FCT_BACKUP_HOST</code></td><td><code>10.0.0.6</code></td><td>FortiCollector #2</td></tr>
+      <tr><td><code>FMG_USERNAME</code></td><td><code>api-user</code></td><td>FortiManager read-only API account</td></tr>
+      <tr><td><code>FMG_PASSWORD</code></td><td>required</td><td>API account password</td></tr>
+      <tr><td><code>FMG_VERIFY_SSL</code></td><td><code>false</code></td><td>Validate FMG TLS cert</td></tr>
+      <tr><td><code>FMG_TIMEOUT</code></td><td><code>30</code></td><td>API timeout in seconds</td></tr>
+    </table>
+
+    <h3>Health Thresholds</h3>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>CPU_WARN</code> / <code>CPU_CRIT</code></td><td>70 / 90</td><td>CPU % thresholds (yellow / red)</td></tr>
+      <tr><td><code>MEM_WARN</code> / <code>MEM_CRIT</code></td><td>75 / 90</td><td>Memory % thresholds (yellow / red)</td></tr>
+    </table>
+
+    <h3>Active Directory (production only)</h3>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>AD_ENABLED</code></td><td><code>false</code></td><td>Enable AD authentication</td></tr>
+      <tr><td><code>AD_SERVER</code></td><td>—</td><td>LDAP URI, e.g. <code>ldaps://dc.yourdomain.com:636</code></td></tr>
+      <tr><td><code>AD_DOMAIN</code></td><td>—</td><td>NetBIOS domain name</td></tr>
+      <tr><td><code>AD_BASE_DN</code></td><td>—</td><td><code>DC=yourdomain,DC=com</code></td></tr>
+      <tr><td><code>AD_BIND_USER</code></td><td>—</td><td>Full DN of LDAP service account</td></tr>
+      <tr><td><code>AD_BIND_PASSWORD</code></td><td>—</td><td>Service account password</td></tr>
+      <tr><td><code>AD_USER_SEARCH</code></td><td>—</td><td>OU to search for users</td></tr>
+      <tr><td><code>AD_GROUP_ADMIN</code></td><td>—</td><td>Full DN of the AD group → <code>admin</code> role</td></tr>
+      <tr><td><code>AD_GROUP_VIEWER</code></td><td>—</td><td>Full DN of the AD group → <code>viewer</code> role</td></tr>
+      <tr><td><code>AD_VERIFY_SSL</code></td><td><code>false</code></td><td>Validate domain controller TLS cert</td></tr>
+    </table>
+
+    <hr id="dev-logging" />
+    <h2>Application Logging</h2>
+
+    <p><code>app/app_logger.py</code> provides an in-memory ring-buffer logger. It is viewable in real time through <strong>Admin → Application Logs</strong> without tailing a file.</p>
+
+    <table>
+      <tr><th>Level</th><th>Use when</th></tr>
+      <tr><td><code>ERROR</code></td><td>Unhandled exceptions, authentication failures</td></tr>
+      <tr><td><code>WARN</code></td><td>Failed login attempts, unexpected API responses</td></tr>
+      <tr><td><code>INFO</code> (default)</td><td>Login/logout events, group changes</td></tr>
+      <tr><td><code>DEBUG</code></td><td>Admin page access, API round-trips</td></tr>
+      <tr><td><code>TRACE</code></td><td>Detailed per-request data for deep troubleshooting</td></tr>
+    </table>
+
+    <ul>
+      <li>Max <strong>2 000 entries</strong> — oldest are dropped when full. Buffer is cleared on process restart.</li>
+      <li>Active capture level controls what is written — entries below the level are discarded immediately, not just hidden.</li>
+      <li>Level can be changed at runtime from the Admin UI (no restart needed).</li>
+      <li>Thread-safe with <code>threading.Lock</code>; safe under multi-worker gunicorn (each worker has its own buffer).</li>
+    </ul>
+
+    <!-- ════════════ PRODUCTION ════════════ -->
+    <hr id="prod-overview" />
+    <h2>Production Overview</h2>
+
+    <p>In production 4THealth runs behind Nginx as a reverse proxy, with gunicorn serving the WSGI application. See <code>production.md</code> for the full step-by-step guide. This section covers the authentication and RBAC differences from development.</p>
+
+    <div class="diagram">Internet / Internal Network
+        │  HTTPS :443
+        ▼
+    Nginx  (TLS termination, security headers, rate limiting)
+        │  HTTP :8000 (127.0.0.1 only)
+        ▼
+    Gunicorn  (4 workers, timeout 120s)
+        │
+        ▼
+    Flask app  (wsgi:app)
+        │
+        ├──── Local bcrypt auth (users.json fallback — always available)
+        │
+        └──── Active Directory LDAP auth  (when AD_ENABLED=true)
+                    │
+                    │  ldaps://:636
+                    ▼
+              Domain Controller  (bind → user search → re-bind → memberOf)</div>
+
+    <hr id="prod-ad" />
+    <h2>Active Directory Authentication (Production)</h2>
+
+    <p>When <code>AD_ENABLED=true</code>, the login flow changes:</p>
+
+    <ol>
+      <li>User submits credentials via <code>POST /login</code>.</li>
+      <li><code>auth_routes.py</code> calls the AD-aware <code>authenticate()</code> function.</li>
+      <li>The function binds to the domain controller using the service account (<code>AD_BIND_USER</code> / <code>AD_BIND_PASSWORD</code>).</li>
+      <li>It searches for the user by <code>sAMAccountName</code> in <code>AD_USER_SEARCH</code>.</li>
+      <li>It re-binds using the user's credentials to validate the password.</li>
+      <li>It reads the user's <code>memberOf</code> attribute and checks against <code>AD_GROUP_ADMIN</code> / <code>AD_GROUP_VIEWER</code> to determine role.</li>
+      <li>On success, session is populated identically to local auth.</li>
+    </ol>
+
+    <div class="callout warn">
+      <p><strong>Always keep a local admin fallback.</strong> If the AD server is unreachable, local <code>users.json</code> accounts are the only way in. Emergency procedure: set <code>AD_ENABLED=false</code> in <code>.env</code>, restart the service, log in with the local admin account, restore after AD recovery.</p>
+    </div>
+
+    <h3>AD Group → Tab Permission Mapping</h3>
+    <p>When AD is active, group membership for tab permissions is resolved at login from the user's <code>memberOf</code> attribute (CN values), not from the <code>members</code> arrays in <code>groups.json</code>. The tab permission sets in <code>groups.json</code> remain authoritative — only the membership source changes.</p>
+    <p>Group names in <code>groups.json</code> must match the AD group <code>CN</code> values (or role strings) for the mapping to work. See <code>production.md → Migrating Local Groups to Active Directory</code> for the full migration checklist.</p>
+
+    <h3>Setting Up AD Groups (PowerShell)</h3>
+    <pre><code>New-ADGroup -Name "4THealth-Admins"  -GroupScope Global -GroupCategory Security
+New-ADGroup -Name "4THealth-Viewers" -GroupScope Global -GroupCategory Security
+
+# Assign users
+Add-ADGroupMember -Identity "4THealth-Admins"  -Members "jsmith"
+Add-ADGroupMember -Identity "4THealth-Viewers" -Members "bjones","mlee"
+
+# Service account for LDAP bind
+New-ADUser -Name "svc_4thealth" `
+  -SamAccountName "svc_4thealth" `
+  -AccountPassword (ConvertTo-SecureString "StrongPW123!" -AsPlainText -Force) `
+  -Enabled $true -PasswordNeverExpires $true</code></pre>
+
+    <hr id="prod-rbac" />
+    <h2>RBAC &amp; Tab Permissions</h2>
+
+    <p>RBAC is fully implemented — no code changes are needed at deployment time. This section explains the enforcement model.</p>
+
+    <h3>Role Summary</h3>
+    <table>
+      <tr><th>Role</th><th>Dashboard</th><th>Firewalls</th><th>Versions</th><th>Rule Review</th><th>Admin page</th><th>Raw/Debug endpoints</th></tr>
+      <tr>
+        <td><span class="badge admin">admin</span></td>
+        <td>Always</td><td>Always</td><td>Always</td><td>Always</td>
+        <td>✅</td><td>✅</td>
+      </tr>
+      <tr>
+        <td><span class="badge viewer">viewer</span></td>
+        <td>Per group</td><td>Per group</td><td>Per group</td><td>Per group</td>
+        <td>❌ 403</td><td>❌ 403</td>
+      </tr>
+    </table>
+
+    <h3>Enforcement Layers</h3>
+    <ol>
+      <li><strong>Session cookie:</strong> Signed with <code>SECRET_KEY</code> via itsdangerous — clients cannot tamper with role or tab list.</li>
+      <li><strong>Route decorators:</strong> <code>@login_required</code> (all routes), <code>@tab_required("key")</code> (tab pages), <code>@_admin_required</code> (admin and raw endpoints).</li>
+      <li><strong>Template globals:</strong> <code>current_role</code> and <code>allowed_tabs</code> hide nav links cosmetically — but server-side enforcement is the real gate.</li>
+    </ol>
+
+    <div class="callout good">
+      <p><strong>Security note:</strong> Nav link hiding is cosmetic only. A viewer who manually types <code>/admin</code> receives HTTP 403 regardless of what the nav bar shows.</p>
+    </div>
+
+    <hr id="prod-deployment" />
+    <h2>Production Deployment Checklist</h2>
+
+    <p>Full instructions are in <code>production.md</code>. This is the short verification checklist after deployment:</p>
+
+    <ul>
+      <li>☐ <code>SECRET_KEY</code> is a 64-char random hex string (not the example value)</li>
+      <li>☐ <code>.env</code> permissions are <code>640</code>, owner <code>4thealth:4thealth</code></li>
+      <li>☐ <code>users.json</code> permissions are <code>640</code>, owner <code>4thealth:4thealth</code></li>
+      <li>☐ <code>COOKIE_SECURE=true</code> is set in <code>.env</code></li>
+      <li>☐ Nginx HSTS header is present (<code>Strict-Transport-Security</code>)</li>
+      <li>☐ TLS 1.0/1.1 are disabled in Nginx (<code>ssl_protocols TLSv1.2 TLSv1.3</code>)</li>
+      <li>☐ Port 8000 is <em>not</em> exposed externally (<code>--bind 127.0.0.1:8000</code>)</li>
+      <li>☐ fail2ban is running and watching <code>/login</code></li>
+      <li>☐ Log rotation is configured under <code>/etc/logrotate.d/4thealth</code></li>
+      <li>☐ At least one local admin account exists in <code>users.json</code> as an AD fallback</li>
+      <li>☐ Smoke test: <code>curl -sk https://4thealth.yourdomain.com/login | grep -i 4thealth</code></li>
+      <li>☐ RBAC test: log in as a viewer, confirm <code>/admin</code> returns 403</li>
+    </ul>
+
+    <!-- ════════════ API REFERENCE ════════════ -->
+    <hr id="api-auth" />
+    <h2>API Reference</h2>
+
+    <div class="callout info">
+      <p>All endpoints require an active authenticated session (HTTP 401 otherwise). <span class="badge admin">admin</span> = admin role required (403 for viewers).</p>
+    </div>
+
+    <h3 id="api-auth">Authentication</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge post">POST</span></td>
+        <td><code>/login</code></td>
+        <td>Form fields: <code>username</code>, <code>password</code>, optional <code>next</code>. Sets session. Redirects on success.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/logout</code></td>
+        <td>Clears session. Redirects to <code>/login</code>.</td>
+      </tr>
+    </table>
+
+    <h3 id="api-dashboard">Dashboard / Infrastructure</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/infrastructure</code></td>
+        <td></td>
+        <td>Health data for all 6 infrastructure devices (FMG×2, FAZ×2, FCT×2). Returns array of card objects with CPU/mem/disk/status.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/infrastructure/raw</code></td>
+        <td><span class="badge admin">admin</span></td>
+        <td>Raw FortiManager responses for each infrastructure device — useful for diagnosing field-name differences across firmware versions.</td>
+      </tr>
+    </table>
+
+    <h3 id="api-firewalls">Firewalls</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/adoms</code></td>
+        <td></td>
+        <td>List all ADOMs visible to the API account.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/adoms/&lt;adom&gt;/devices</code></td>
+        <td></td>
+        <td>List all managed devices in the specified ADOM. Returns name, IP, platform, firmware version, serial number, status.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/adoms/&lt;adom&gt;/devices/&lt;name&gt;/health</code></td>
+        <td></td>
+        <td>Full live telemetry for a device via FortiManager proxy: system status, CPU/mem, interfaces, IPv4 routes, BGP neighbors and paths, OSPF neighbors, IPsec tunnels.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/adoms/&lt;adom&gt;/devices/&lt;name&gt;/raw</code></td>
+        <td><span class="badge admin">admin</span></td>
+        <td>Raw proxy payloads per health endpoint — for debugging FortiOS API response shapes.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/search?q=&lt;query&gt;</code></td>
+        <td></td>
+        <td>Search all ADOMs by device name or management IP. Returns matching devices with ADOM context.</td>
+      </tr>
+    </table>
+
+    <h3 id="api-hygiene">Rule Review</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/api/hygiene/adoms/&lt;adom&gt;/packages</code></td>
+        <td></td>
+        <td>List policy packages in the ADOM. Folder paths are flattened with <code>/</code> separators.</td>
+      </tr>
+      <tr>
+        <td><span class="badge post">POST</span></td>
+        <td><code>/api/hygiene/policies</code></td>
+        <td></td>
+        <td>Body: <code>{"adom": "root", "pkg_path": "pkg/path"}</code>. Returns policy list for the package.</td>
+      </tr>
+      <tr>
+        <td><span class="badge post">POST</span></td>
+        <td><code>/api/hygiene/run</code></td>
+        <td></td>
+        <td>Body: <code>{"adom": "root", "pkg_path": "pkg/path", "checks": ["unnamed","unlogged",...]}</code>. Returns <code>{adom, package, checks_run, policy_count, total, findings: [...]}</code>.</td>
+      </tr>
+    </table>
+
+    <h4>Hygiene Check Keys</h4>
+    <table>
+      <tr><th>Key</th><th>What it finds</th></tr>
+      <tr><td><code>unnamed</code></td><td>Rules with no name and/or no comment</td></tr>
+      <tr><td><code>unlogged</code></td><td>Rules where <code>logtraffic</code> is disabled or not set</td></tr>
+      <tr><td><code>shadow</code></td><td>Enabled rules unreachable because a broader <code>src=any/dst=any/svc=any</code> rule appears earlier in the sequence</td></tr>
+      <tr><td><code>disabled</code></td><td>Rules whose <code>status</code> field is <code>disable</code></td></tr>
+      <tr><td><code>expired</code></td><td>Rules with a time-based schedule whose end-date has passed</td></tr>
+      <tr><td><code>unhit</code></td><td>Rules with a hit count of 0 (only when FMG includes the counter)</td></tr>
+      <tr><td><code>no_deny_all</code></td><td>Package-level finding when no enabled <code>src=any/dst=any/svc=any/action=deny</code> rule exists</td></tr>
+    </table>
+
+    <h3 id="api-admin">Admin</h3>
+    <table>
+      <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/admin/api/groups</code></td>
+        <td>List all groups with members and allowed_tabs.</td>
+      </tr>
+      <tr>
+        <td><span class="badge post">POST</span></td>
+        <td><code>/admin/api/groups</code></td>
+        <td>Create group. Body: <code>{"name": "NOC", "members": ["user1"], "allowed_tabs": ["dashboard"]}</code></td>
+      </tr>
+      <tr>
+        <td><span class="badge put">PUT</span></td>
+        <td><code>/admin/api/groups/&lt;name&gt;</code></td>
+        <td>Update group members and/or allowed_tabs.</td>
+      </tr>
+      <tr>
+        <td><span class="badge del">DELETE</span></td>
+        <td><code>/admin/api/groups/&lt;name&gt;</code></td>
+        <td>Delete group.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/admin/api/users</code></td>
+        <td>List local users (for member picker in group editor).</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/admin/api/tabs</code></td>
+        <td>List registered tab keys and display names.</td>
+      </tr>
+      <tr>
+        <td><span class="badge get">GET</span></td>
+        <td><code>/admin/api/logs</code></td>
+        <td>Fetch log entries. Query params: <code>level</code>, <code>component</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="badge post">POST</span></td>
+        <td><code>/admin/api/logs/level</code></td>
+        <td>Change active capture level. Body: <code>{"level": "DEBUG"}</code></td>
+      </tr>
+      <tr>
+        <td><span class="badge del">DELETE</span></td>
+        <td><code>/admin/api/logs</code></td>
+        <td>Clear the in-memory log buffer.</td>
+      </tr>
+    </table>
+    <p>All <code>/admin/*</code> endpoints require the <code>admin</code> role (HTTP 403 otherwise).</p>
+
+    <!-- ════════════ EXTENDING ════════════ -->
+    <hr id="module-design" />
+    <h2>Module Design — How Extensibility Works</h2>
+
+    <p>Three infrastructure modules make adding a new tab a self-contained operation that touches no existing files except one line in <code>__init__.py</code>:</p>
+
+    <table>
+      <tr><th>Module</th><th>What it provides</th></tr>
+      <tr>
+        <td><code>app/registry.py</code></td>
+        <td>
+          <strong>Tab registry.</strong> Each blueprint calls <code>registry.register(key, name, endpoint)</code> at import time. The app factory injects the resulting <code>nav_registry</code> dict into every template, so <code>base.html</code> renders the nav bar from data — no hard-coded tab blocks needed.
+        </td>
+      </tr>
+      <tr>
+        <td><code>app/decorators.py</code></td>
+        <td>
+          <strong>Shared route decorators.</strong> <code>login_required</code>, <code>tab_required("key")</code>, and <code>admin_required</code> — import from here instead of redefining them in every blueprint. Each handles both browser requests (redirect to /login, HTTP 403 page) and API requests (JSON 401/403 responses) automatically.
+        </td>
+      </tr>
+      <tr>
+        <td><code>app/fmg_helpers.py</code></td>
+        <td>
+          <strong>Shared FMG client factory.</strong> <code>make_client()</code> returns a configured <code>FMGClient</code> pointed at the primary FortiManager host. Import this instead of duplicating the host/auth config in every blueprint.
+        </td>
+      </tr>
+    </table>
+
+    <p>The admin UI tab-permission checklist is also fully automatic: on startup, the factory copies the registry into <code>groups.KNOWN_TABS</code>, which drives the <code>GET /admin/api/tabs</code> endpoint that populates the Admin group-editor checkboxes. No manual edit to <code>groups.py</code> needed.</p>
+
+    <div class="callout good">
+      <p><strong>Summary:</strong> to add a tab you create one new file (<code>my_module.py</code>) and add one line to <code>__init__._BLUEPRINT_MODULES</code>. The nav bar, Admin permission editor, and RBAC enforcement all update automatically.</p>
+    </div>
+
+    <hr id="adding-page" />
+    <h2>Adding a New Tab / Module — Step by Step</h2>
+
+    <h3>Step 1 — Create the blueprint file</h3>
+    <p>Create <code>app/routes/my_module.py</code>. The file has three responsibilities: register the tab, define the page route, and define API data routes.</p>
+
+    <pre><code>"""My Module — brief description of what this tab does."""
+
+from flask import Blueprint, render_template, session, jsonify
+from app.decorators import tab_required
+from app.fmg_helpers import make_client
+from app.fmg_client import FMGError
+from app import registry
+
+bp = Blueprint("my_module", __name__)
+
+# ── Register this tab ──────────────────────────────────────────────────────────
+# key:      used in allowed_tabs, groups.json, and @tab_required()
+# name:     shown in nav bar and Admin permission checklist
+# endpoint: Flask endpoint string for url_for()
+registry.register("my_module", "My Module", "my_module.my_page")
+
+
+# ── Page route ─────────────────────────────────────────────────────────────────
+@bp.route("/my-module")
+@tab_required("my_module")
+def my_page():
+    return render_template("my_module.html", user=session["user"])
+
+
+# ── Data API routes ────────────────────────────────────────────────────────────
+@bp.route("/api/my-module/data")
+@tab_required("my_module")
+def my_data():
+    try:
+        with make_client() as client:
+            raw = client.get_adoms()   # replace with real call
+        return jsonify(raw)
+    except FMGError as exc:
+        return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500</code></pre>
+
+    <h3>Step 2 — Register the blueprint in __init__.py</h3>
+    <p>This is the <strong>only</strong> existing file you need to touch:</p>
+
+    <pre><code># app/__init__.py
+_BLUEPRINT_MODULES = [
+    "app.routes.auth_routes",
+    "app.routes.dashboard_routes",
+    "app.routes.api_routes",
+    "app.routes.admin_routes",
+    "app.routes.hygiene_routes",
+    "app.routes.my_module",    # ← add this line
+]</code></pre>
+
+    <h3>Step 3 — Create the HTML template</h3>
+    <p>Create <code>app/templates/my_module.html</code>. Extend <code>base.html</code> — the nav bar, theme toggle, and help button are inherited automatically:</p>
+
+    <pre><code>{% extends "base.html" %}
+{% block title %}My Module — 4THealth{% endblock %}
+
+{% block content %}
+&lt;div class="page-header"&gt;
+  &lt;h2&gt;My Module&lt;/h2&gt;
+&lt;/div&gt;
+
+&lt;!-- Controls row --&gt;
+&lt;div class="controls-row"&gt;
+  &lt;select class="form-select" id="adomSelect"&gt;
+    &lt;option value=""&gt;Select ADOM…&lt;/option&gt;
+  &lt;/select&gt;
+  &lt;button class="btn btn-primary" id="btnLoad"&gt;Load&lt;/button&gt;
+&lt;/div&gt;
+
+&lt;!-- Results --&gt;
+&lt;div id="resultsContainer"&gt;&lt;/div&gt;
+{% endblock %}
+
+{% block scripts %}
+&lt;script src="{{ url_for('static', filename='js/my_module.js') }}?v=1"&gt;&lt;/script&gt;
+{% endblock %}</code></pre>
+
+    <h3>Step 4 — Create the JavaScript</h3>
+    <p>Create <code>app/static/js/my_module.js</code>. Use an IIFE to avoid polluting global scope, mirror the patterns in <code>versions.js</code> or <code>hygiene.js</code>:</p>
+
+    <pre><code>(function () {
+  'use strict';
+
+  // ── Populate ADOM dropdown ──────────────────────────────────────────────────
+  async function loadAdoms() {
+    const res = await fetch('/api/adoms');
+    if (!res.ok) return;
+    const adoms = await res.json();
+    const sel = document.getElementById('adomSelect');
+    adoms.forEach(a => sel.add(new Option(a, a)));
+  }
+
+  // ── Load data ───────────────────────────────────────────────────────────────
+  async function load() {
+    const adom = document.getElementById('adomSelect').value;
+    if (!adom) return;
+    const res = await fetch(`/api/my-module/data?adom=${encodeURIComponent(adom)}`);
+    if (!res.ok) { showError('Failed to load data.'); return; }
+    const data = await res.json();
+    render(data);
+  }
+
+  function render(data) {
+    document.getElementById('resultsContainer').innerHTML =
+      `&lt;pre&gt;${JSON.stringify(data, null, 2)}&lt;/pre&gt;`;
+  }
+
+  function showError(msg) {
+    document.getElementById('resultsContainer').innerHTML =
+      `&lt;div class="alert alert-danger"&gt;${msg}&lt;/div&gt;`;
+  }
+
+  document.getElementById('btnLoad').addEventListener('click', load);
+
+  loadAdoms();
+})();</code></pre>
+
+    <h3>Step 5 — Grant access via Admin</h3>
+    <p>Start the server. Navigate to <strong>Admin → Groups &amp; Permissions</strong>. The new tab <em>"My Module"</em> appears automatically in the tab checklist for every group. Check it for the groups that should have access, then save.</p>
+
+    <div class="callout info">
+      <p><strong>Admin users</strong> see the new tab immediately with no group changes needed — admins always have full access. <strong>Viewer users</strong> see it only after their group is updated.</p>
+    </div>
+
+    <h3>Nav bar order</h3>
+    <p>Tabs appear in the nav bar in the order their <code>registry.register()</code> calls execute. Blueprints are loaded in <code>_BLUEPRINT_MODULES</code> order, and within each blueprint, <code>register()</code> calls run top-to-bottom. Reorder entries in <code>_BLUEPRINT_MODULES</code> or move <code>register()</code> calls within a blueprint to change display order.</p>
+
+    <h3>Optional: icon in nav label</h3>
+    <pre><code>registry.register("my_module", "My Module", "my_module.my_page", icon="📊")</code></pre>
+    <p>The icon is prepended to the display name in the nav bar. Leave blank (default) for no icon.</p>
+
+    <h3>Admin-only modules</h3>
+    <p>If the new module should be admin-only (never shown to viewers), use <code>@admin_required</code> instead of <code>@tab_required()</code> and do not call <code>registry.register()</code> — the link will never appear in the nav bar for viewers. For an admin-only API endpoint on an existing blueprint, just add <code>@admin_required</code>:</p>
+    <pre><code>from app.decorators import admin_required
+
+@bp.route("/api/my-module/debug")
+@admin_required
+def my_debug():
+    ...</code></pre>
+
+    <hr id="shared-tools" />
+    <h2>Shared Tools Reference</h2>
+
+    <h3>app/decorators.py</h3>
+    <table>
+      <tr><th>Decorator</th><th>Use on</th><th>Effect</th></tr>
+      <tr>
+        <td><code>@login_required</code></td>
+        <td>Any route needing auth</td>
+        <td>Redirects browser to <code>/login</code>; returns JSON 401 for <code>/api/</code> paths</td>
+      </tr>
+      <tr>
+        <td><code>@tab_required("key")</code></td>
+        <td>Page and API routes for a tab</td>
+        <td>Passes admins always; checks <code>session["allowed_tabs"]</code> for viewers; returns 403/redirect if missing</td>
+      </tr>
+      <tr>
+        <td><code>@admin_required</code></td>
+        <td>Admin-only routes</td>
+        <td>Returns 403 (JSON for <code>/admin/api/</code>) or redirects if role ≠ admin</td>
+      </tr>
+    </table>
+    <p>Import from <code>app.decorators</code>. Never redefine these locally in a blueprint.</p>
+
+    <h3>app/fmg_helpers.py</h3>
+    <pre><code>from app.fmg_helpers import make_client
+
+with make_client() as client:
+    data = client.get_devices("root")</code></pre>
+    <p><code>make_client()</code> uses the primary FMG host from <code>Config</code>. For the infrastructure dashboard (which queries each of the 6 hosts individually) the raw <code>FMGClient</code> constructor is used directly — that is the only correct exception.</p>
+
+    <h3>app/registry.py</h3>
+    <pre><code>from app import registry
+
+# In blueprint module — call once at module level:
+registry.register(key, name, endpoint, icon="")
+
+# Read back the full registry (returns dict snapshot):
+registry.get_registry()   # {key: {name, endpoint, icon}, ...}
+registry.known_tabs()     # {key: name, ...}  — compatible with groups.KNOWN_TABS</code></pre>
+
+    <h3>app/app_logger.py</h3>
+    <pre><code>from app.app_logger import app_log
+
+app_log("INFO",  "my_module", "Something happened", user=username)
+app_log("WARN",  "my_module", "Unexpected response", status=r.status_code)
+app_log("ERROR", "my_module", "FMG call failed",    error=str(exc))
+app_log("DEBUG", "my_module", "Request detail",      adom=adom, pkg=pkg)</code></pre>
+    <p>The first two arguments are <code>level</code> and <code>component</code>. Use your module's name as the component so admins can filter the log by it. Extra keyword arguments appear in the "extra" column of the log viewer.</p>
+
+    <hr id="adding-check" />
+    <h2>Adding a Hygiene Check</h2>
+
+    <p>All hygiene checks live in <code>app/hygiene.py</code> as standalone functions. Each receives the full policy list and returns a list of finding dicts:</p>
+
+    <pre><code># app/hygiene.py
+
+def check_my_rule(policies: list[dict]) -&gt; list[dict]:
+    findings = []
+    for p in policies:
+        seq  = p.get("policyid", "?")
+        name = p.get("name", "")
+        if &lt;your condition here&gt;:
+            findings.append({
+                "policy_id":   seq,
+                "policy_name": name,
+                "seq":         seq,
+                "check":       "my_rule",
+                "detail":      "Human-readable explanation of the finding",
+            })
+    return findings</code></pre>
+
+    <p>Then add it to the <code>CHECKS</code> dict at the bottom of <code>hygiene.py</code> (this is what populates the hygiene UI checklist):</p>
+    <pre><code>CHECKS: dict[str, tuple[str, Callable]] = {
+    ...
+    "my_rule": ("My Rule Display Name", check_my_rule),
+}</code></pre>
+
+    <p>The new check appears automatically in the Hygiene UI checklist. No changes needed to <code>hygiene_routes.py</code>, <code>hygiene.html</code>, or <code>hygiene.js</code>.</p>
+
+    <hr id="frontend" />
+    <h2>Frontend Conventions</h2>
+
+    <h3>No Build Tools</h3>
+    <p>The entire frontend is <strong>plain HTML, CSS, and vanilla JavaScript</strong>. No webpack, no TypeScript, no React, no npm. This is intentional — it keeps the project dependency surface minimal and deployable anywhere Python runs.</p>
+
+    <h3>CSS Component Classes</h3>
+    <p>Use the classes from <code>app/static/css/style.css</code> in your templates — these are all theme-aware:</p>
+    <table>
+      <tr><th>Class</th><th>Use for</th></tr>
+      <tr><td><code>.page-header</code></td><td>Page title row (matches all other pages)</td></tr>
+      <tr><td><code>.controls-row</code></td><td>Horizontal row of selects/buttons above content</td></tr>
+      <tr><td><code>.data-table</code> in <code>.table-wrapper</code></td><td>Standard paginated table</td></tr>
+      <tr><td><code>.btn .btn-primary .btn-sm .btn-ghost</code></td><td>Button variants</td></tr>
+      <tr><td><code>.form-control .form-select .form-select-sm</code></td><td>Input/select styling</td></tr>
+      <tr><td><code>.modal-overlay .modal-dialog .modal-header .modal-body</code></td><td>Modal dialogs</td></tr>
+      <tr><td><code>.alert-danger .alert-warning .alert-success</code></td><td>Flash / error messages</td></tr>
+      <tr><td><code>.empty-state .loading-placeholder</code></td><td>Table empty/loading states</td></tr>
+      <tr><td><code>.pagination .pg-btn</code></td><td>Pagination controls</td></tr>
+      <tr><td><code>.text-muted</code></td><td>Subdued secondary text</td></tr>
+    </table>
+
+    <h3>Themes</h3>
+    <p><code>style.css</code> uses CSS custom properties on <code>:root</code> for both light and dark themes. The <code>data-theme="dark"</code> attribute is toggled on <code>&lt;html&gt;</code> by an inline script in <code>base.html</code>. Your templates inherit this automatically — never hard-code colors; use the CSS variables.</p>
+
+    <h3>JavaScript Patterns</h3>
+    <ul>
+      <li>Wrap all module JS in an IIFE: <code>(function () { 'use strict'; ... })();</code></li>
+      <li>Fetch data from <code>/api/*</code> using <code>fetch()</code>. Check <code>res.ok</code> before parsing.</li>
+      <li>Render tables by building an HTML string and assigning to <code>element.innerHTML</code>. Always run user-controlled strings through an <code>esc()</code> helper (see <code>admin.js</code> for the pattern).</li>
+      <li>Client-side pagination: hold the full dataset in a module-level array; <code>renderTable()</code> slices it by current page. The hygiene and versions modules are the clearest examples.</li>
+      <li>Export CSV: build a Blob, create a temporary <code>&lt;a&gt;</code>, set <code>href</code> + <code>download</code>, click it. Export PDF: open a new window, write a printable HTML page, call <code>window.print()</code>.</li>
+      <li>Cache-bust static assets by incrementing the <code>?v=N</code> query string in the <code>&lt;script src&gt;</code> tag when you make changes users have already cached.</li>
+    </ul>
+
+    <h3>Adding a New Help Tab</h3>
+    <p>Help content is in <code>app/static/js/help.js</code>. Append an entry to the <code>tabs</code> array near the top of the file — the modal renders them dynamically. No HTML template changes needed.</p>
+
+    <pre><code>// app/static/js/help.js  — tabs array
+const tabs = [
+  { id: "overview",   label: "Overview",   content: "..." },
+  { id: "dashboard",  label: "Dashboard",  content: "..." },
+  // ...existing tabs...
+  { id: "my_module",  label: "My Module",  content: "&lt;p&gt;Explain your new tab here.&lt;/p&gt;" },
+];</code></pre>
+
+    <hr />
+    <p style="font-size:.8rem; color: var(--muted); margin-top: 2rem;">
+      4THealth Developer Guide &nbsp;·&nbsp; Updated May 2026 &nbsp;·&nbsp;
+      For deployment instructions see <a href="production.md">production.md</a> &nbsp;·&nbsp;
+      For user-facing features see <a href="README.md">README.md</a>
+    </p>
+
+  </main>
+</div>
+
+</body>
+</html>

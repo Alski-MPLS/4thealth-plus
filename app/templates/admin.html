@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+{% block title %}Admin — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>&#9881; Administration</h2>
+  </div>
+</div>
+
+<!-- Admin sub-tabs -->
+<div class="admin-tabs" id="adminTabs">
+  <button class="admin-tab active" data-panel="groups">Groups &amp; Permissions</button>
+  <button class="admin-tab" data-panel="map-regions">Map Region Colors</button>
+  <button class="admin-tab" data-panel="external-api">External API</button>
+  <button class="admin-tab" data-panel="scheduled">Scheduled</button>
+  <button class="admin-tab" data-panel="backup">Backup</button>
+  <button class="admin-tab" data-panel="logs">Application Logs</button>
+</div>
+
+<!-- ═══════════════════════  GROUPS PANEL  ═══════════════════════ -->
+<div class="admin-panel active" id="panel-groups">
+
+  <div class="admin-panel-header">
+    <div>
+      <h3>Groups</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        Groups control which navigation tabs a user can see.
+        Admins always have full access regardless of group membership.
+      </p>
+    </div>
+    <button class="btn btn-primary" id="btnNewGroup">+ New Group</button>
+  </div>
+
+  <div id="groupsTableWrap" class="table-wrapper">
+    <table class="data-table" id="groupsTable">
+      <thead>
+        <tr>
+          <th>Group Name</th>
+          <th>Members</th>
+          <th>AD Groups</th>
+          <th>Allowed Tabs</th>
+          <th>ADOM Access</th>
+          <th style="width:120px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="groupsTbody">
+        <tr><td colspan="6" class="loading-placeholder">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════  MAP REGIONS PANEL  ═══════════════════ -->
+<div class="admin-panel" id="panel-map-regions">
+
+  <div class="admin-panel-header">
+    <div>
+      <h3>Map Region Colors</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        Device pins on the map are coloured by US geographic region. Add, rename, or delete
+        regions; reassign states; change colours. The <strong>Other</strong> row covers any
+        state not assigned to a named region. A state can only belong to one region.
+      </p>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn" id="btnAddRegion"
+              style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">+ Add Region</button>
+      <button class="btn btn-primary" id="btnSaveRegionColors">Save</button>
+    </div>
+  </div>
+
+  <div id="mapRegionsMsg" class="hidden" style="margin-bottom:.75rem;padding:.5rem .75rem;border-radius:4px;font-size:.85rem"></div>
+
+  <table class="data-table" id="mapRegionsTable">
+    <thead>
+      <tr>
+        <th style="width:170px">Region Name</th>
+        <th>States</th>
+        <th style="width:170px">Pin Color</th>
+        <th style="width:44px"></th>
+      </tr>
+    </thead>
+    <tbody id="mapRegionsTbody">
+      <tr><td colspan="4" class="loading-placeholder">Loading…</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<!-- ══════════════════════  EXTERNAL API PANEL  ══════════════════════ -->
+<div class="admin-panel" id="panel-external-api">
+
+  <div class="admin-panel-header">
+    <div>
+      <h3>External API</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        Enable bearer-token access to the Zone Policy data for external programs (e.g. FW-Analyst).
+        When enabled, callers can query <code>/external/api/zone/*</code> without a browser session.
+      </p>
+    </div>
+  </div>
+
+  <!-- Enable / Disable toggle -->
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:.75rem 1rem;background:var(--surface-alt);border:1px solid var(--border);border-radius:6px">
+    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
+      <input type="checkbox" id="extApiEnabled" style="width:1.1rem;height:1.1rem" />
+      External API enabled
+    </label>
+    <button class="btn btn-primary btn-sm" id="btnSaveExtApiToggle">Save</button>
+    <span id="extApiToggleMsg" style="font-size:.83rem"></span>
+  </div>
+
+  <!-- Token management -->
+  <div class="admin-panel-header" style="margin-top:1rem">
+    <div>
+      <h4 style="margin:0">Bearer Tokens</h4>
+      <p class="text-muted" style="font-size:.82rem;margin-top:.2rem">
+        Each token grants read-only access to the Zone Policy external endpoints.
+        A token's value is shown <strong>once</strong> at creation time — store it securely.
+      </p>
+    </div>
+    <button class="btn btn-primary" id="btnNewToken">+ New Token</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table" id="tokensTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Created By</th>
+          <th style="width:110px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tokensTbody">
+        <tr><td colspan="3" class="loading-placeholder">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════  CONFIG-DIFF PANEL  ══════════════════════ -->
+<div class="admin-panel" id="panel-scheduled">
+
+  <!-- SMTP Configuration -->
+  <div class="admin-panel-header">
+    <h3>SMTP Configuration</h3>
+    <p class="admin-panel-desc">Global email settings used by all scheduled jobs (Config-Delta and Device Review).</p>
+  </div>
+  <div style="max-width:520px">
+    <div class="form-row">
+      <label>Host</label>
+      <input type="text" id="smtpHost" placeholder="mail.internal.example.com">
+    </div>
+    <div class="form-row">
+      <label>Port</label>
+      <input type="number" id="smtpPort" value="25" style="width:100px">
+    </div>
+    <div class="form-row">
+      <label>TLS Mode</label>
+      <select id="smtpTls">
+        <option value="none">None (plain)</option>
+        <option value="starttls">STARTTLS (port 587)</option>
+        <option value="ssl">SSL/TLS (port 465)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Username <span style="font-weight:normal;color:#6b7280">(optional)</span></label>
+      <input type="text" id="smtpUsername" placeholder="Leave blank for unauthenticated relay">
+    </div>
+    <div class="form-row">
+      <label>Password <span style="font-weight:normal;color:#6b7280">(optional)</span></label>
+      <input type="password" id="smtpPassword" placeholder="Leave blank for unauthenticated relay">
+    </div>
+    <div class="form-row">
+      <label>From Address <span style="font-weight:normal;color:#6b7280">(optional)</span></label>
+      <input type="text" id="smtpFrom" placeholder="4thealth@example.com">
+    </div>
+    <div class="form-row">
+      <label>Run History Retention</label>
+      <input type="number" id="smtpRetentionDays" value="30" style="width:80px"> days
+    </div>
+    <div class="form-row">
+      <label>Enabled</label>
+      <input type="checkbox" id="smtpEnabled">
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+      <button class="btn-primary" onclick="saveSMTP()">Save</button>
+      <button class="btn-secondary" onclick="testSMTP()">Test</button>
+      <input type="text" id="smtpTestTo" placeholder="Send test to..." style="width:220px">
+      <span id="smtpMsg" style="font-size:12px"></span>
+    </div>
+  </div>
+
+  <!-- Scheduled Jobs -->
+  <div class="admin-panel-header" style="margin-top:2rem">
+    <h3>Scheduled Exports</h3>
+    <p class="admin-panel-desc">Each job fetches Config-Delta diffs for an entire ADOM and emails the results.</p>
+  </div>
+  <button class="btn-primary" onclick="showJobForm()" style="margin-bottom:12px">+ Add Job</button>
+
+  <!-- Add/Edit inline form -->
+  <div id="jobForm" class="job-form-panel" style="display:none">
+    <h4 style="margin:0 0 12px" id="jobFormTitle">New Scheduled Export</h4>
+    <input type="hidden" id="jobFormId">
+    <div class="form-row">
+      <label>ADOM</label>
+      <select id="jobFormAdom" style="min-width:200px"></select>
+    </div>
+    <div class="form-row">
+      <label>Day(s)</label>
+      <div class="day-picker">
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-SUN" value="SUN"> Sun</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-MON" value="MON"> Mon</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-TUE" value="TUE"> Tue</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-WED" value="WED"> Wed</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-THU" value="THU"> Thu</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-FRI" value="FRI"> Fri</label>
+        <label class="day-picker-item"><input type="checkbox" id="dayChk-SAT" value="SAT"> Sat</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Time (24h)</label>
+      <input type="time" id="jobFormTime" value="06:00">
+    </div>
+    <div class="form-row">
+      <label>Format</label>
+      <select id="jobFormFormat">
+        <option value="pdf" selected>HTML (colored diff)</option>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Email To</label>
+      <input type="email" id="jobFormEmail" placeholder="recipient@example.com" style="min-width:240px">
+    </div>
+    <div class="form-row">
+      <label>Enabled</label>
+      <input type="checkbox" id="jobFormEnabled" checked>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn-primary" onclick="saveJob()">Save</button>
+      <button class="btn-secondary" onclick="cancelJobForm()">Cancel</button>
+      <span id="jobFormMsg" style="font-size:12px;align-self:center"></span>
+    </div>
+  </div>
+
+  <!-- Jobs table -->
+  <div style="overflow-x:auto">
+    <table class="admin-table" id="jobsTable">
+      <thead>
+        <tr>
+          <th>ADOM</th><th>Days</th><th>Time</th><th>Format</th>
+          <th>Email</th><th>Last Run</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="jobsTableBody">
+        <tr><td colspan="8" style="color:#6b7280;text-align:center">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Device Review Scheduled Jobs -->
+  <div class="admin-panel-header" style="margin-top:2rem">
+    <h3>Device Review Jobs</h3>
+    <p class="admin-panel-desc">Each job runs CIS hardening checks against all devices in an ADOM and emails a report.</p>
+  </div>
+  <button class="btn-primary" onclick="showDRJobForm()" style="margin-bottom:12px">+ Add Job</button>
+
+  <!-- Add/Edit inline form -->
+  <div id="drJobForm" class="job-form-panel" style="display:none">
+    <h4 style="margin:0 0 12px" id="drJobFormTitle">New Device Review Job</h4>
+    <input type="hidden" id="drJobFormId">
+    <div class="form-row">
+      <label>Name</label>
+      <input type="text" id="drJobFormName" placeholder="e.g. Weekly CIS Audit — Enterprise" style="min-width:280px">
+    </div>
+    <div class="form-row">
+      <label>ADOM</label>
+      <select id="drJobFormAdom" style="min-width:200px"></select>
+    </div>
+    <div class="form-row">
+      <label>Day(s)</label>
+      <div class="day-picker">
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-SUN" value="SUN"> Sun</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-MON" value="MON"> Mon</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-TUE" value="TUE"> Tue</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-WED" value="WED"> Wed</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-THU" value="THU"> Thu</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-FRI" value="FRI"> Fri</label>
+        <label class="day-picker-item"><input type="checkbox" id="drDayChk-SAT" value="SAT"> Sat</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Time (24h)</label>
+      <input type="time" id="drJobFormTime" value="06:00">
+    </div>
+    <div class="form-row" style="align-items:flex-start">
+      <label style="padding-top:4px">Checks</label>
+      <div id="drCheckList" style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;padding:4px 0">
+        {% for check in checks_meta %}
+        <label style="display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer">
+          <input type="checkbox" name="drJobCheck" value="{{ check.key }}" checked
+                 onchange="updateDRParamsPanel()">
+          <span title="{{ check.description }}">{{ check.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="drParamsPanel" style="display:none;margin-left:0;margin-top:8px">
+      <label style="font-size:.85rem;font-weight:600;color:var(--text-muted)">Check Parameters</label>
+      <div id="drParamsFields" style="margin-top:6px"></div>
+    </div>
+    <div class="form-row">
+      <label>Format</label>
+      <select id="drJobFormFormat">
+        <option value="pdf" selected>HTML (styled report)</option>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Email To</label>
+      <input type="text" id="drJobFormEmail" placeholder="alice@corp.com, bob@corp.com" style="min-width:280px">
+    </div>
+    <div class="form-row">
+      <label>Enabled</label>
+      <input type="checkbox" id="drJobFormEnabled" checked>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn-primary" onclick="saveDRJob()">Save</button>
+      <button class="btn-secondary" onclick="cancelDRJobForm()">Cancel</button>
+      <span id="drJobFormMsg" style="font-size:12px;align-self:center"></span>
+    </div>
+  </div>
+
+  <!-- Device Review Jobs table -->
+  <div style="overflow-x:auto;margin-top:12px">
+    <table class="admin-table" id="drJobsTable">
+      <thead>
+        <tr>
+          <th>Name</th><th>ADOM</th><th>Days</th><th>Time</th><th>Checks</th>
+          <th>Format</th><th>Email</th><th>Last Run</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="drJobsTableBody">
+        <tr><td colspan="10" style="color:#6b7280;text-align:center">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════  BACKUP PANEL  ═══════════════════════ -->
+<div class="admin-panel" id="panel-backup">
+  <div class="admin-panel-header">
+    <h2>Backup</h2>
+    <p class="admin-panel-desc">Create encrypted backups of all runtime configuration files. Archives are AES-256 password-protected ZIPs.</p>
+  </div>
+
+  <!-- Panel 1: Settings -->
+  <div class="admin-panel-header" style="margin-top:1.5rem">
+    <h3>Backup Settings</h3>
+  </div>
+  <form id="backupSettingsForm">
+    <div class="form-row">
+      <label for="backupPassword">Backup Password</label>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <input type="password" id="backupPassword" name="password" placeholder="Required — set before creating backups" style="flex:1">
+        <button type="button" class="btn btn-sm" id="backupPasswordToggle">Show</button>
+      </div>
+      <div id="backupPasswordHint" class="form-hint" style="color:var(--warning-color);display:none">
+        Store this password securely offline. If lost, all backups become permanently unrecoverable.
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="backupDir">Backup Directory</label>
+      <input type="text" id="backupDir" name="backup_dir" value="/var/backups/4thealth">
+    </div>
+    <div class="form-row">
+      <label>
+        <input type="checkbox" id="backupExcludeTlsKey" name="exclude_tls_key">
+        Exclude TLS private key (<code>certs/key.pem</code>) from backup
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <span id="backupSettingsSaveMsg" style="margin-left:0.5rem;display:none"></span>
+  </form>
+
+  <!-- Panel 2: Remote Transfer -->
+  <div class="admin-panel-header" style="margin-top:2rem">
+    <h3>Remote Transfer (FTP/SFTP)</h3>
+  </div>
+  <form id="backupFtpForm">
+    <div class="form-row">
+      <label>
+        <input type="checkbox" id="backupFtpEnabled" name="ftp_enabled">
+        Enable remote transfer after each scheduled backup
+      </label>
+    </div>
+    <div class="form-row">
+      <label for="backupFtpProtocol">Protocol</label>
+      <select id="backupFtpProtocol" name="protocol">
+        <option value="sftp">SFTP (recommended)</option>
+        <option value="ftp">FTP</option>
+      </select>
+    </div>
+    <div id="backupFtpWarning" class="alert alert-warning" style="display:none;margin:0.5rem 0">
+      &#9888; FTP transmits your username, password, and backup archive in plaintext over the network. Use SFTP where possible.
+    </div>
+    <div class="form-row">
+      <label for="backupFtpHost">Host</label>
+      <input type="text" id="backupFtpHost" name="host" placeholder="backup.example.com">
+    </div>
+    <div class="form-row">
+      <label for="backupFtpPort">Port</label>
+      <input type="number" id="backupFtpPort" name="port" value="22" style="width:6rem">
+    </div>
+    <div class="form-row">
+      <label for="backupFtpUsername">Username</label>
+      <input type="text" id="backupFtpUsername" name="username">
+    </div>
+    <div class="form-row">
+      <label for="backupFtpPassword">Password</label>
+      <input type="password" id="backupFtpPassword" name="ftp_password">
+    </div>
+    <div class="form-row">
+      <label for="backupFtpRemoteDir">Remote Directory</label>
+      <input type="text" id="backupFtpRemoteDir" name="remote_dir" value="/backups/4thealth">
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="button" class="btn btn-sm" id="backupFtpTestBtn">Test Connection</button>
+      <span id="backupFtpTestResult" style="display:none"></span>
+    </div>
+  </form>
+
+  <!-- Panel 3: One-Time Backup -->
+  <div class="admin-panel-header" style="margin-top:2rem">
+    <h3>One-Time Backup</h3>
+    <p class="admin-panel-desc">The backup is saved to the backup directory on the server and downloaded to your browser. Remote transfer is not triggered for manual backups.</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <button class="btn btn-primary" id="backupRunNowBtn">Create Backup Now</button>
+    <span id="backupRunNowSpinner" style="display:none">Creating backup…</span>
+  </div>
+  <div id="backupLastManual" style="margin-top:0.75rem;font-size:0.875rem;color:var(--text-muted);display:none"></div>
+
+  <!-- Panel 4: Scheduled Backups -->
+  <div class="admin-panel-header" style="margin-top:2rem">
+    <h3>Scheduled Backups</h3>
+  </div>
+  <button class="btn btn-sm" id="backupAddJobBtn" style="margin-bottom:0.75rem">+ Add Job</button>
+
+  <div id="backupJobForm" class="admin-form-panel" style="display:none;margin-bottom:1rem">
+    <h4 id="backupJobFormTitle">Add Backup Job</h4>
+    <input type="hidden" id="backupJobId">
+    <div class="form-row">
+      <label for="backupJobName">Job Name</label>
+      <input type="text" id="backupJobName" placeholder="e.g. Nightly Backup">
+    </div>
+    <div class="form-row">
+      <label>Days of Week</label>
+      <div class="day-picker" id="backupDayPicker">
+        <label><input type="checkbox" value="SUN"> Sun</label>
+        <label><input type="checkbox" value="MON"> Mon</label>
+        <label><input type="checkbox" value="TUE"> Tue</label>
+        <label><input type="checkbox" value="WED"> Wed</label>
+        <label><input type="checkbox" value="THU"> Thu</label>
+        <label><input type="checkbox" value="FRI"> Fri</label>
+        <label><input type="checkbox" value="SAT"> Sat</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="backupJobTime">Time (HH:MM)</label>
+      <input type="time" id="backupJobTime" value="02:00">
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="backupJobEnabled" checked> Enabled</label>
+    </div>
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn btn-primary" id="backupJobSaveBtn">Save Job</button>
+      <button class="btn btn-sm" id="backupJobCancelBtn">Cancel</button>
+    </div>
+    <div id="backupJobFormError" style="color:var(--danger-color);margin-top:0.5rem;display:none"></div>
+  </div>
+
+  <table class="admin-table" id="backupJobsTable">
+    <thead>
+      <tr>
+        <th>Name</th><th>Days</th><th>Time</th><th>Last Run</th><th>Status</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="backupJobsBody">
+      <tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No scheduled backup jobs.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════  LOGS PANEL  ═══════════════════════ -->
+<div class="admin-panel" id="panel-logs">
+
+  <div class="admin-panel-header">
+    <div>
+      <h3>Application Logs</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        In-memory ring buffer — up to 2 000 entries, cleared on restart.
+      </p>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <label style="font-size:.85rem;font-weight:500">Level:</label>
+      <select class="form-select-sm" id="logLevelSelect"></select>
+      <button class="btn btn-primary btn-sm" id="btnSetLevel">Set</button>
+      <button class="btn btn-sm" id="btnRefreshLogs" style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">&#8635; Refresh</button>
+      <button class="btn btn-sm" id="btnClearLogs" style="background:rgba(220,53,69,.12);border:1px solid rgba(220,53,69,.3);color:var(--danger)">Clear Buffer</button>
+    </div>
+  </div>
+
+  <!-- Filter row -->
+  <div class="controls-row" style="margin-bottom:.75rem">
+    <label style="font-size:.85rem">Filter level ≥</label>
+    <select class="form-select-sm" id="logFilterLevel">
+      <option value="">All</option>
+    </select>
+    <label style="font-size:.85rem">Component</label>
+    <input class="form-control" id="logFilterComponent" placeholder="e.g. auth" style="max-width:160px;padding:.3rem .6rem;font-size:.8rem" />
+    <button class="btn btn-sm" id="btnApplyFilter" style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">Apply</button>
+  </div>
+
+  <div class="log-status-bar" id="logStatusBar">
+    Active level: <strong id="logCurrentLevel">—</strong> &nbsp;|&nbsp; Showing <strong id="logCount">0</strong> entries
+  </div>
+
+  <div class="log-container" id="logContainer">
+    <div class="loading-placeholder">Loading logs…</div>
+  </div>
+</div>
+
+<!-- ═══════════════════  GROUP MODAL  ═══════════════════ -->
+<div class="modal-overlay hidden" id="groupModal">
+  <div class="modal-dialog" style="max-width:620px">
+    <div class="modal-header">
+      <h3 id="groupModalTitle">New Group</h3>
+      <button class="modal-close" id="groupModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="groupModalMode" value="create" />
+      <input type="hidden" id="groupModalOrigName" value="" />
+
+      <div class="form-group">
+        <label for="groupNameInput">Group Name</label>
+        <input type="text" class="form-control" id="groupNameInput" placeholder="e.g. NOC-Team" />
+      </div>
+
+      <div class="form-group">
+        <label>Allowed Tabs</label>
+        <div id="tabCheckboxes" class="checkbox-group"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Members <span class="text-muted" style="font-weight:400;font-size:.82rem">(local accounts)</span></label>
+        <div class="member-picker">
+          <div id="memberCheckboxes" class="checkbox-group"></div>
+        </div>
+        <p class="text-muted" style="font-size:.78rem;margin-top:.4rem">
+          Admins always have full access and do not need to be in a group.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label>AD / RADIUS Groups <span class="text-muted" style="font-weight:400;font-size:.82rem">(optional)</span></label>
+        <div id="adGroupTags" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem"></div>
+        <div style="display:flex;gap:.4rem">
+          <input type="text" class="form-control" id="adGroupInput"
+                 placeholder="e.g. 4THealth-Admins  then press Enter"
+                 style="flex:1" />
+          <button type="button" class="btn btn-sm" id="adGroupAdd"
+                  style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text);white-space:nowrap">
+            Add
+          </button>
+        </div>
+        <p class="text-muted" style="font-size:.78rem;margin-top:.4rem">
+          Any RADIUS user whose Filter-Id or Class attribute matches one of these
+          values is treated as a member of this group. Use the exact string
+          FortiAuthenticator returns (check with <code>radtest -x</code>).
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+          <input type="checkbox" id="adomRestrictToggle" />
+          Restrict ADOM access for this group
+        </label>
+        <p class="text-muted" style="font-size:.78rem;margin-top:.3rem">
+          When enabled, members of this group can only see the ADOMs checked below.
+          If disabled, members have access to all ADOMs (subject to their tab permissions).
+        </p>
+      </div>
+
+      <div class="form-group" id="adomCheckboxWrap" style="display:none">
+        <label>Allowed ADOMs</label>
+        <div style="margin-bottom:.4rem;display:flex;gap:.5rem">
+          <button type="button" class="btn btn-sm" id="adomSelectAll"
+                  style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text);padding:.2rem .6rem;font-size:.78rem">
+            Select All
+          </button>
+          <button type="button" class="btn btn-sm" id="adomSelectNone"
+                  style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text);padding:.2rem .6rem;font-size:.78rem">
+            Clear All
+          </button>
+          <span id="adomCacheStatus" style="font-size:.75rem;color:var(--text-muted);align-self:center"></span>
+        </div>
+        <div id="adomCheckboxes" class="checkbox-group" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:.5rem"></div>
+      </div>
+
+      <div id="groupModalError" class="alert alert-danger hidden"></div>
+
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem">
+        <button class="btn" id="groupModalCancel" style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">Cancel</button>
+        <button class="btn btn-primary" id="groupModalSave">Save Group</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════  NEW TOKEN MODAL  ════════════════ -->
+<div class="modal-overlay hidden" id="newTokenModal">
+  <div class="modal-dialog" style="max-width:420px">
+    <div class="modal-header">
+      <h3>New API Token</h3>
+      <button class="modal-close" id="newTokenModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="newTokenName">Token Name</label>
+        <input type="text" class="form-control" id="newTokenName" placeholder="e.g. FW-Analyst-Prod" />
+      </div>
+      <div id="newTokenError" class="alert alert-danger hidden"></div>
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem">
+        <button class="btn" id="newTokenCancel" style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">Cancel</button>
+        <button class="btn btn-primary" id="newTokenSave">Generate Token</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════  TOKEN REVEAL MODAL  ════════════════ -->
+<div class="modal-overlay hidden" id="tokenRevealModal">
+  <div class="modal-dialog" style="max-width:520px">
+    <div class="modal-header">
+      <h3>Token Created</h3>
+      <button class="modal-close" id="tokenRevealClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--warning);font-weight:500;margin-bottom:.75rem">
+        &#9888; Copy this token now — it will not be shown again.
+      </p>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <code id="tokenRevealValue"
+              style="flex:1;background:var(--surface-alt);border:1px solid var(--border);border-radius:4px;padding:.5rem .75rem;font-size:.82rem;word-break:break-all;user-select:all"></code>
+        <button class="btn btn-sm" id="btnCopyToken"
+                style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text);white-space:nowrap">
+          Copy
+        </button>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:1.25rem">
+        <button class="btn btn-primary" id="tokenRevealDone">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════  DELETE CONFIRM MODAL  ═══════════════ -->
+<div class="modal-overlay hidden" id="deleteModal">
+  <div class="modal-dialog" style="max-width:420px">
+    <div class="modal-header">
+      <h3>Delete Group</h3>
+      <button class="modal-close" id="deleteModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Delete group <strong id="deleteGroupName"></strong>? This cannot be undone.</p>
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1.25rem">
+        <button class="btn" id="deleteModalCancel" style="background:var(--surface-alt);border:1px solid var(--border);color:var(--text)">Cancel</button>
+        <button class="btn" id="deleteModalConfirm" style="background:var(--danger);color:#fff;border:none">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}?v=9"></script>
+<script>
+  const DR_CHECK_DEFS = {{ checks_meta | tojson }};
+</script>
+{% endblock %}

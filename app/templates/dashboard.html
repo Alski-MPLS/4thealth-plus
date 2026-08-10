@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — 4THealth{% endblock %}
+
+{% block content %}
+
+<!-- ── Managed network summary bar ── -->
+<div class="summary-bar" id="summaryBar">
+  <div class="summary-stat" id="statFirewalls">
+    <div class="summary-stat-value" id="statFwTotal"><span class="summary-spinner"></span></div>
+    <div class="summary-stat-label">Managed Firewalls</div>
+  </div>
+  <div class="summary-divider"></div>
+  <div class="summary-stat" id="statRules">
+    <div class="summary-stat-value" id="statRulesTotal"><span class="summary-spinner"></span></div>
+    <div class="summary-stat-label">Policy Rules Managed</div>
+  </div>
+  <div class="summary-meta" id="summaryMeta"></div>
+  <button class="btn btn-sm btn-secondary" id="summaryRefreshBtn" title="Recalculate now" style="margin-left:.5rem">&#8635; Refresh</button>
+</div>
+
+<!-- ── 30-day trend charts ── -->
+<div class="trend-charts" id="trendCharts" style="display:none">
+  <div class="trend-chart-card">
+    <div class="trend-chart-title">Managed Firewalls — 30 days</div>
+    <svg class="trend-svg" id="trendFwSvg" preserveAspectRatio="none"></svg>
+    <div class="trend-axis-x" id="trendFwAxisX"></div>
+  </div>
+  <div class="trend-chart-card">
+    <div class="trend-chart-title">Policy Rules — 30 days</div>
+    <svg class="trend-svg" id="trendRulesSvg" preserveAspectRatio="none"></svg>
+    <div class="trend-axis-x" id="trendRulesAxisX"></div>
+  </div>
+</div>
+
+<div class="page-header">
+  <div>
+    <h2>Infrastructure Health</h2>
+    <span class="last-updated" id="lastUpdated"></span>
+  </div>
+  <div class="page-header-actions">
+    <select id="autoRefresh" class="form-select-sm">
+      <option value="0">Manual</option>
+      <option value="60">Every 1 min</option>
+      <option value="300" selected>Every 5 min</option>
+      <option value="600">Every 10 min</option>
+      <option value="900">Every 15 min</option>
+    </select>
+    <button class="btn btn-primary" id="refreshBtn">&#8635; Refresh</button>
+  </div>
+</div>
+
+<div class="card-grid" id="infraGrid">
+  <div class="loading-placeholder">Loading infrastructure data…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=13"></script>
+{% endblock %}

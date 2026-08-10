@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body      { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #222; margin: 0; padding: 0; background: #f4f4f4; }
+    .wrapper  { max-width: 760px; margin: 24px auto; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+    .header   { padding: 20px 28px; color: #fff; }
+    .header.HEALTHY  { background: #2e7d32; }
+    .header.WARNING  { background: #f57f17; }
+    .header.CRITICAL { background: #b71c1c; }
+    .header.UNKNOWN  { background: #546e7a; }
+    .header h1       { margin: 0 0 4px; font-size: 22px; }
+    .header p        { margin: 0; font-size: 13px; opacity: .85; }
+    .body     { padding: 20px 28px; }
+    h2        { font-size: 15px; margin: 20px 0 8px; border-bottom: 2px solid #e0e0e0; padding-bottom: 4px; color: #333; }
+    table     { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th, td    { text-align: left; padding: 7px 10px; font-size: 13px; border: 1px solid #e0e0e0; }
+    th        { background: #f5f5f5; font-weight: 600; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .badge          { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #fff; }
+    .badge.OK       { background: #388e3c; }
+    .badge.WARNING  { background: #f57f17; }
+    .badge.CRITICAL { background: #c62828; }
+    .badge.UNKNOWN  { background: #607d8b; }
+    .errors   { background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; padding: 10px 14px; }
+    .errors pre { margin: 0; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+    .footer   { padding: 12px 28px; font-size: 11px; color: #888; border-top: 1px solid #eee; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header {{ overall_status }}">
+    <h1>4THealth Health Check — {{ overall_status }}</h1>
+    <p>Host: <strong>{{ ansible_facts['hostname'] }}</strong> &nbsp;|&nbsp; {{ report_timestamp.stdout }}</p>
+  </div>
+
+  <div class="body">
+
+    <!-- ── Services ──────────────────────────────────────────────────────── -->
+    <h2>Services</h2>
+    <table>
+      <tr><th>Service</th><th>State</th><th>Sub-state</th><th>Status</th></tr>
+      <tr>
+        <td>{{ app_service }}.service</td>
+        <td>{{ svc_4thealth.status.ActiveState | default('unknown') }}</td>
+        <td>{{ svc_4thealth.status.SubState | default('unknown') }}</td>
+        <td><span class="badge {{ status_4thealth_svc }}">{{ status_4thealth_svc }}</span></td>
+      </tr>
+      <tr>
+        <td>{{ nginx_service }}.service</td>
+        <td>{{ svc_nginx.status.ActiveState | default('unknown') }}</td>
+        <td>{{ svc_nginx.status.SubState | default('unknown') }}</td>
+        <td><span class="badge {{ status_nginx_svc }}">{{ status_nginx_svc }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── Port Listeners ────────────────────────────────────────────────── -->
+    <h2>Port Listeners</h2>
+    <table>
+      <tr><th>Component</th><th>Port</th><th>Status</th></tr>
+      <tr>
+        <td>Gunicorn (internal)</td>
+        <td>127.0.0.1:{{ app_port }}</td>
+        <td><span class="badge {{ status_gunicorn_port }}">{{ status_gunicorn_port }}</span></td>
+      </tr>
+      <tr>
+        <td>Nginx (HTTPS)</td>
+        <td>0.0.0.0:{{ app_https_port }}</td>
+        <td><span class="badge {{ status_nginx_port }}">{{ status_nginx_port }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── HTTP/HTTPS Reachability ─────────────────────────────────────── -->
+    <h2>HTTP / HTTPS Reachability</h2>
+    <table>
+      <tr><th>Target</th><th>URL</th><th>HTTP Code</th><th>Status</th></tr>
+      <tr>
+        <td>Gunicorn direct</td>
+        <td>http://127.0.0.1:{{ app_port }}/login</td>
+        <td>{{ check_gunicorn_http.status | default('—') }}</td>
+        <td><span class="badge {{ status_gunicorn_http }}">{{ status_gunicorn_http }}</span></td>
+      </tr>
+      <tr>
+        <td>Full stack (Nginx)</td>
+        <td>https://{{ app_host }}/login</td>
+        <td>{{ check_nginx_https.status | default('—') }}</td>
+        <td><span class="badge {{ status_nginx_https }}">{{ status_nginx_https }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── TLS Certificate ────────────────────────────────────────────── -->
+    <h2>TLS Certificate</h2>
+    <table>
+      <tr><th>Host</th><th>Expiry Date</th><th>Days Remaining</th><th>Status</th></tr>
+      <tr>
+        <td>{{ app_host }}:{{ app_https_port }}</td>
+        <td>{{ cert_expiry_raw.stdout | default('unknown') | trim }}</td>
+        <td>{{ cert_days }}</td>
+        <td><span class="badge {{ status_cert }}">{{ status_cert }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── Disk Space ─────────────────────────────────────────────────── -->
+    <h2>Disk Space</h2>
+    <table>
+      <tr><th>Path</th><th>Used %</th><th>Thresholds (warn/crit)</th><th>Status</th></tr>
+      <tr>
+        <td>{{ app_path }}</td>
+        <td>{{ disk_app_pct }}%</td>
+        <td>{{ disk_warn_percent }}% / {{ disk_crit_percent }}%</td>
+        <td><span class="badge {{ status_disk_app }}">{{ status_disk_app }}</span></td>
+      </tr>
+      <tr>
+        <td>{{ app_log_dir }}</td>
+        <td>{{ disk_log_pct }}%</td>
+        <td>{{ disk_warn_percent }}% / {{ disk_crit_percent }}%</td>
+        <td><span class="badge {{ status_disk_log }}">{{ status_disk_log }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── Application Error Logs ─────────────────────────────────────── -->
+    <h2>Application Errors (last {{ check_window_minutes }} minutes)</h2>
+    <table>
+      <tr><th>Error count</th><th>Threshold</th><th>Status</th></tr>
+      <tr>
+        <td>{{ error_count }}</td>
+        <td>0 = OK &nbsp;/ &nbsp;1–10 = WARNING &nbsp;/ &nbsp;&gt;10 = CRITICAL</td>
+        <td><span class="badge {{ status_errors }}">{{ status_errors }}</span></td>
+      </tr>
+    </table>
+{% if error_count | int > 0 %}
+    <div class="errors">
+      <strong>Recent error log entries (last 20):</strong>
+      <pre>{{ journal_errors.stdout | default('') | trim }}</pre>
+    </div>
+{% endif %}
+
+    <!-- ── Summary API ────────────────────────────────────────────────── -->
+    <h2>Application API Availability</h2>
+    <table>
+      <tr><th>Endpoint</th><th>HTTP Response</th><th>Status</th></tr>
+      <tr>
+        <td>/api/summary</td>
+        <td>{{ summary_probe.status | default('—') }}
+          {% if summary_probe.status in [401, 403] %}
+          <em style="color:#888">(auth required — endpoint is up)</em>
+          {% endif %}
+        </td>
+        <td><span class="badge {{ status_summary_api }}">{{ status_summary_api }}</span></td>
+      </tr>
+    </table>
+
+    <!-- ── Configuration Used ─────────────────────────────────────────── -->
+    <h2>Check Configuration</h2>
+    <table>
+      <tr><th>Parameter</th><th>Value</th></tr>
+      <tr><td>App host</td><td>{{ app_host }}</td></tr>
+      <tr><td>App path</td><td>{{ app_path }}</td></tr>
+      <tr><td>Log directory</td><td>{{ app_log_dir }}</td></tr>
+      <tr><td>Disk warn / critical</td><td>{{ disk_warn_percent }}% / {{ disk_crit_percent }}%</td></tr>
+      <tr><td>Cert warn / critical</td><td>{{ cert_warn_days }} days / {{ cert_crit_days }} days</td></tr>
+      <tr><td>Journald scan window</td><td>{{ check_window_minutes }} minutes</td></tr>
+    </table>
+
+  </div><!-- /body -->
+
+  <div class="footer">
+    Generated by Ansible Automation Platform &nbsp;|&nbsp;
+    Playbook: 4thealth_healthcheck.yml &nbsp;|&nbsp;
+    Execution node: {{ inventory_hostname }}
+  </div>
+
+</div><!-- /wrapper -->
+</body>
+</html>

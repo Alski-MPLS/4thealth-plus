@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Device Versions — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Device Versions</h2>
+</div>
+
+<!-- All-ADOM summary chart -->
+<div id="globalVersionsContent"></div>
+
+<!-- Global version detail panel (shown when a bar in the global chart is clicked) -->
+<div id="globalVersionDetail" style="display:none"></div>
+
+<!-- ADOM selector -->
+<div class="controls-row" style="margin-top:1.5rem">
+  <label for="adomSelect">ADOM:</label>
+  <select id="adomSelect" class="form-select" style="max-width:300px">
+    <option value="">— select ADOM —</option>
+  </select>
+  <button class="btn btn-primary" id="refreshBtn">&#8635; Refresh</button>
+  <button class="btn btn-sm btn-ghost" id="adomCloseBtn" style="display:none">&#10005; Close</button>
+</div>
+
+<div id="versionsContent"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/versions.js') }}?v=9"></script>
+{% endblock %}

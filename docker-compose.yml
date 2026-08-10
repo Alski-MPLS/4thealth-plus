@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    image: 4thealth:latest
+    container_name: 4thealth
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    env_file:
+      - .env
+    volumes:
+      - ./users.json:/app/users.json:rw
+      - ./groups.json:/app/groups.json:rw
+      - ./infra_targets.json:/app/infra_targets.json:ro
+      - ./policy_db.json:/app/policy_db.json:rw
+      - ./app_settings.json:/app/app_settings.json:rw
+      - ./api_tokens.json:/app/api_tokens.json:rw
+      - ./smtp_config.json:/app/smtp_config.json:rw
+      - ./config_diff_jobs.json:/app/config_diff_jobs.json:rw
+      - ./device_review_jobs.json:/app/device_review_jobs.json:rw
+      - ./summary_history.json:/app/summary_history.json:rw
+      - ./certs:/app/certs:ro
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request, ssl; urllib.request.urlopen('https://localhost:8100/login', context=ssl._create_unverified_context(), timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

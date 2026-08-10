@@ -1,0 +1,11 @@
+[
+  { "label": "FortiManager Primary",    "host": "10.0.0.1",   "type": "FortiManager",      "token": "fmg-primary-bearer-token" },
+  { "label": "FortiManager Backup",     "host": "10.0.0.2",   "type": "FortiManager",      "token": "fmg-backup-bearer-token" },
+  { "label": "FortiAnalyzer Primary",   "host": "10.0.0.3",   "type": "FortiAnalyzer",     "token": "faz-primary-bearer-token" },
+  { "label": "FortiAnalyzer Backup",    "host": "10.0.0.4",   "type": "FortiAnalyzer",     "token": "faz-backup-bearer-token" },
+  { "label": "FortiCollector #1",       "host": "10.0.0.5",   "type": "FortiCollector",    "token": "fct-1-bearer-token" },
+  { "label": "FortiCollector #2",       "host": "10.0.0.6",   "type": "FortiCollector",    "token": "fct-2-bearer-token" },
+  { "label": "FortiAuthenticator #1",   "host": "10.0.0.7",   "type": "FortiAuthenticator","token": "fac-1-bearer-token",
+    "snmp_user": "monitor2", "snmp_auth_key": "example-auth-key", "snmp_priv_key": "example-priv-key" },
+  { "label": "FortiAuthenticator #2",   "host": "10.0.0.8",   "type": "FortiAuthenticator","token": "fac-2-bearer-token" }
+]

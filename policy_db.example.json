@@ -1,0 +1,154 @@
+{
+  "zones": {
+    "Internet": {
+      "domain": "Default",
+      "is_shared": true,
+      "description": "Public internet — all routable addresses not matched by any other zone",
+      "subnets": [],
+      "children": [],
+      "parents": []
+    },
+    "DMZ": {
+      "domain": "Default",
+      "is_shared": false,
+      "description": "Demilitarised zone — internet-facing servers",
+      "subnets": [
+        { "subnet": "10.0.0.0/24", "description": "DMZ server range" }
+      ],
+      "children": [],
+      "parents": []
+    },
+    "Corporate": {
+      "domain": "Default",
+      "is_shared": false,
+      "description": "Corporate LAN — end-user workstations",
+      "subnets": [
+        { "subnet": "10.1.0.0/16", "description": "Corporate workstation range" }
+      ],
+      "children": ["Servers"],
+      "parents": []
+    },
+    "Servers": {
+      "domain": "Default",
+      "is_shared": false,
+      "description": "Internal server segment",
+      "subnets": [
+        { "subnet": "10.2.0.0/24", "description": "Application servers" },
+        { "subnet": "10.2.1.0/24", "description": "Database servers" }
+      ],
+      "children": [],
+      "parents": ["Corporate"]
+    },
+    "Management": {
+      "domain": "Default",
+      "is_shared": false,
+      "description": "Out-of-band management network — jump hosts and monitoring",
+      "subnets": [
+        { "subnet": "10.99.0.0/24", "description": "Management hosts" }
+      ],
+      "children": [],
+      "parents": []
+    }
+  },
+  "policies": [
+    {
+      "policy_set": "Corp",
+      "from_zone": "Internet",
+      "to_zone": "DMZ",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Inbound internet traffic permitted to DMZ"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Internet",
+      "to_zone": "Corporate",
+      "access_type": "block all",
+      "severity": "critical",
+      "services": [],
+      "description": "Internet must never reach the corporate LAN directly"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Internet",
+      "to_zone": "Servers",
+      "access_type": "block all",
+      "severity": "critical",
+      "services": [],
+      "description": "Internet must never reach internal servers directly"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Corporate",
+      "to_zone": "Internet",
+      "access_type": "block only",
+      "severity": "high",
+      "services": ["telnet", "ftp", "tcp/23", "tcp/21"],
+      "description": "Block cleartext outbound protocols; all other outbound is permitted"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Corporate",
+      "to_zone": "DMZ",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Corporate users may reach DMZ services"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Corporate",
+      "to_zone": "Servers",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Corporate users may reach internal servers"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "DMZ",
+      "to_zone": "Servers",
+      "access_type": "block all",
+      "severity": "critical",
+      "services": [],
+      "description": "DMZ must not initiate connections into the server segment"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "DMZ",
+      "to_zone": "Corporate",
+      "access_type": "block all",
+      "severity": "critical",
+      "services": [],
+      "description": "DMZ must not initiate connections into the corporate LAN"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Management",
+      "to_zone": "Corporate",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Management hosts have full access for monitoring and administration"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Management",
+      "to_zone": "Servers",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Management hosts have full access to server segment"
+    },
+    {
+      "policy_set": "Corp",
+      "from_zone": "Management",
+      "to_zone": "DMZ",
+      "access_type": "allow all",
+      "severity": "high",
+      "services": [],
+      "description": "Management hosts have full access to DMZ"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "host": "",
+  "port": 25,
+  "tls_mode": "none",
+  "username": "",
+  "password": "",
+  "from_address": "",
+  "run_history_days": 30,
+  "enabled": false
+}

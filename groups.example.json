@@ -1,0 +1,41 @@
+{
+  "group1": {
+    "members": [
+      "user1"
+    ],
+    "allowed_tabs": [
+      "dashboard",
+      "firewalls",
+      "map_view"
+    ],
+    "adom_restrict": true,
+    "allowed_adoms": [
+      "adom-2"
+    ]
+  },
+  "group2": {
+    "members": [
+      "user2"
+    ],
+    "allowed_tabs": [
+      "dashboard",
+      "firewalls",
+      "rule_hygiene"
+    ],
+    "adom_restrict": true,
+    "allowed_adoms": [
+      "adom-1"
+    ]
+  },
+  "network": {
+    "members": [],
+    "allowed_tabs": [
+      "dashboard",
+      "firewalls",
+      "versions",
+      "zone_policy"
+    ],
+    "adom_restrict": false,
+    "allowed_adoms": []
+  }
+}

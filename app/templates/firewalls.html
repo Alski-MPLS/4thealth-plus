@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Firewalls — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Firewall Browser</h2>
+  <div class="status-legend">
+    <span class="legend-item"><span class="status-dot green"></span> Healthy</span>
+    <span class="legend-item"><span class="status-dot yellow"></span> Warning (CPU / Memory)</span>
+    <span class="legend-item"><span class="status-dot red"></span> Critical (CPU / Memory)</span>
+    <span class="legend-item"><span class="status-dot offline"></span> Offline / Not responding</span>
+  </div>
+</div>
+
+<!-- Search bar -->
+<div class="search-bar">
+  <input type="text" id="searchInput" class="form-control" placeholder="Search by name or IP…" />
+  <button class="btn btn-primary" id="searchBtn">Search</button>
+  <span class="search-hint">or select an ADOM below</span>
+</div>
+
+<div id="searchResults" class="search-results hidden"></div>
+
+<!-- ADOM selector -->
+<div class="controls-row">
+  <label for="adomSelect">ADOM:</label>
+  <div class="adom-select-wrapper">
+    <select id="adomSelect" class="form-select" size="1">
+      <option value="">— select ADOM —</option>
+    </select>
+  </div>
+  <div class="page-header-actions">
+    <select id="autoRefresh" class="form-select-sm">
+      <option value="0">Manual</option>
+      <option value="60">Every 1 min</option>
+      <option value="300" selected>Every 5 min</option>
+      <option value="600">Every 10 min</option>
+      <option value="900">Every 15 min</option>
+    </select>
+    <button class="btn btn-primary" id="refreshBtn">&#8635; Refresh</button>
+  </div>
+</div>
+
+<!-- Device table -->
+<div class="table-wrapper" id="deviceTableWrapper" style="display:none">
+  <div class="table-controls" style="margin-bottom:6px">
+    <input type="text" id="deviceFilter" class="form-control form-control-sm" placeholder="Filter devices by name, IP, version, platform, or comment…" autocomplete="off" style="max-width:420px" />
+  </div>
+  <div class="table-controls">
+    <span id="deviceCount"></span>
+    <div class="table-controls-right">
+      <button id="exportCsvBtn"  class="btn btn-sm btn-secondary" onclick="exportCsv()"  disabled title="Export filtered list as CSV">CSV</button>
+      <button id="exportJsonBtn" class="btn btn-sm btn-secondary" onclick="exportJson()" disabled title="Export filtered list as JSON">JSON</button>
+      <button id="exportHtmlBtn" class="btn btn-sm btn-secondary" onclick="exportHtml()" disabled title="Export filtered list as HTML">HTML</button>
+      <select id="pageSize" class="form-select-sm">
+        <option value="10">10</option>
+        <option value="25" selected>25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span>per page</span>
+    </div>
+  </div>
+
+  <table class="data-table" id="deviceTable">
+    <thead>
+      <tr>
+        <th style="width:2rem"></th>
+        <th>Name</th>
+        <th>Management IP</th>
+        <th>Platform</th>
+        <th>Version</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="deviceTbody"></tbody>
+  </table>
+
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<div id="deviceLoading" class="loading-placeholder" style="display:none">Loading devices…</div>
+
+<!-- Device detail modal -->
+<div id="deviceModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 id="modalTitle">Device Detail</h3>
+      <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="loading-placeholder">Loading…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/firewalls.js') }}?v=25"></script>
+{% endblock %}

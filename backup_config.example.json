@@ -1,0 +1,16 @@
+{
+  "password": "",
+  "backup_dir": "/var/backups/4thealth",
+  "max_files": 20,
+  "exclude_tls_key": false,
+  "ftp": {
+    "enabled": false,
+    "protocol": "sftp",
+    "host": "",
+    "port": 22,
+    "username": "",
+    "password": "",
+    "remote_dir": "/backups/4thealth"
+  },
+  "jobs": []
+}

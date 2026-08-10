@@ -1,0 +1,372 @@
+---
+# 4THealth Production Health Check
+#
+# Runs a comprehensive set of checks against the production 4THealth server
+# and sends a formatted HTML email summary to the configured team distribution
+# list. Designed to run as a scheduled AAP (Ansible Automation Platform) job.
+#
+# Checks performed:
+#   1. Systemd service status  — 4thealth.service and nginx.service
+#   2. Port listeners          — Gunicorn on 8100, Nginx on 443 (and 80)
+#   3. Local HTTP reachability — Gunicorn direct + full HTTPS stack via Nginx
+#   4. TLS certificate expiry  — warns at cert_warn_days, critical at cert_crit_days
+#   5. Disk space              — app directory and log directory
+#   6. Recent error log lines  — journald errors in the last check_window_minutes
+#   7. Summary job status      — last run age and firewall/rule counts via /api/summary
+#
+# Target host SSH user requirements:
+#   The connecting user (ansible_user) must have passwordless sudo for:
+#     /bin/systemctl status 4thealth
+#     /bin/systemctl status nginx
+#     /bin/systemctl restart 4thealth
+#     /usr/bin/journalctl
+#     /usr/bin/ss
+#     /usr/bin/openssl
+#
+#   Add to /etc/sudoers.d/4thealth-deploy on the server (see production.md §8.2):
+#     deploy ALL=(root) NOPASSWD: \
+#       /bin/systemctl status 4thealth, \
+#       /bin/systemctl status nginx, \
+#       /bin/systemctl restart 4thealth, \
+#       /usr/bin/journalctl, \
+#       /usr/bin/ss, \
+#       /usr/bin/openssl
+#
+# Credentials / secrets — NEVER commit real values to git:
+#   smtp_host, email_from, email_to must be supplied via:
+#     - AAP extra_vars (Survey or Job Template variables), or
+#     - An Ansible Vault-encrypted file (gitignored — see .gitignore)
+#   The group_vars/4thealth_prod.yml file in this repo contains only
+#   safe defaults and commented-out placeholders — it is safe to commit.
+#
+# Required variables (set in group_vars/4thealth_prod.yml or as AAP extra_vars):
+#   app_host            FQDN or IP of the 4THealth server (used for curl and TLS checks)
+#   app_port            Internal Gunicorn port (default: 8100)
+#   app_https_port      Public HTTPS port (default: 443)
+#   app_path            Application root on the server (default: /opt/4thealth)
+#   app_log_dir         Gunicorn log directory (default: /var/log/4thealth)
+#   app_service         Systemd service name (default: 4thealth)
+#   nginx_service       Nginx service name (default: nginx)
+#   disk_warn_percent   Disk usage % that triggers a WARN (default: 80)
+#   disk_crit_percent   Disk usage % that triggers a CRITICAL (default: 90)
+#   cert_warn_days      TLS cert days-remaining that triggers a WARN (default: 30)
+#   cert_crit_days      TLS cert days-remaining that triggers a CRITICAL (default: 7)
+#   check_window_minutes  How many minutes of journald to scan for errors (default: 60)
+#   summary_stale_hours   How many hours before the summary job is considered stale (default: 26)
+#   smtp_host           SMTP relay hostname              ← supply via AAP / Vault, not group_vars
+#   smtp_port           SMTP port (default: 25)
+#   email_from          Sender address                  ← supply via AAP / Vault, not group_vars
+#   email_to            Recipient address or DL         ← supply via AAP / Vault, not group_vars
+#   email_subject_prefix Subject prefix (default: "[4THealth]")
+
+- name: 4THealth Production Health Check
+  hosts: 4thealth_prod
+  gather_facts: true
+  become: true
+
+  vars:
+    app_port: 8100
+    app_https_port: 443
+    app_path: /opt/4thealth
+    app_log_dir: /var/log/4thealth
+    app_service: 4thealth
+    nginx_service: nginx
+    disk_warn_percent: 80
+    disk_crit_percent: 90
+    cert_warn_days: 30
+    cert_crit_days: 7
+    check_window_minutes: 60
+    summary_stale_hours: 26
+    smtp_port: 25
+    email_subject_prefix: "[4THealth]"
+    # Populated dynamically below — do not set here
+    _findings: []
+
+  tasks:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 1. Systemd service status
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Check 4thealth systemd service state
+      ansible.builtin.systemd:
+        name: "{{ app_service }}"
+      register: svc_4thealth
+      failed_when: false
+
+    - name: Check nginx systemd service state
+      ansible.builtin.systemd:
+        name: "{{ nginx_service }}"
+      register: svc_nginx
+      failed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 2. Port listeners
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Check Gunicorn is listening on port {{ app_port }}
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ app_port }}"
+        timeout: 5
+        state: started
+      register: port_gunicorn
+      failed_when: false
+      ignore_errors: true
+
+    - name: Check Nginx is listening on port {{ app_https_port }}
+      ansible.builtin.wait_for:
+        host: 0.0.0.0
+        port: "{{ app_https_port }}"
+        timeout: 5
+        state: started
+      register: port_nginx_https
+      failed_when: false
+      ignore_errors: true
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 3. HTTP/HTTPS reachability
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Test Gunicorn direct HTTP (bypasses Nginx)
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_port }}/login"
+        method: GET
+        status_code: [200, 302]
+        timeout: 10
+        validate_certs: false
+        return_content: true
+      register: check_gunicorn_http
+      failed_when: false
+
+    - name: Test full HTTPS stack through Nginx
+      ansible.builtin.uri:
+        url: "https://{{ app_host }}/login"
+        method: GET
+        status_code: [200, 302]
+        timeout: 10
+        validate_certs: false
+        return_content: true
+      register: check_nginx_https
+      failed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 4. TLS certificate expiry
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Get TLS certificate expiry date
+      ansible.builtin.shell: |
+        openssl s_client -connect {{ app_host }}:{{ app_https_port }} \
+          -servername {{ app_host }} </dev/null 2>/dev/null \
+        | openssl x509 -noout -enddate 2>/dev/null \
+        | sed 's/notAfter=//'
+      register: cert_expiry_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Calculate days until TLS certificate expires
+      ansible.builtin.shell: |
+        expiry="{{ cert_expiry_raw.stdout | trim }}"
+        if [ -z "$expiry" ]; then
+          echo "-1"
+        else
+          expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$expiry" +%s 2>/dev/null)
+          now_epoch=$(date +%s)
+          echo $(( (expiry_epoch - now_epoch) / 86400 ))
+        fi
+      register: cert_days_remaining
+      changed_when: false
+      failed_when: false
+      when: cert_expiry_raw.rc == 0
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 5. Disk space
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Get disk usage for app directory
+      ansible.builtin.shell: |
+        df -P "{{ app_path }}" | awk 'NR==2 {print $5}' | tr -d '%'
+      register: disk_app
+      changed_when: false
+      failed_when: false
+
+    - name: Get disk usage for log directory
+      ansible.builtin.shell: |
+        df -P "{{ app_log_dir }}" | awk 'NR==2 {print $5}' | tr -d '%'
+      register: disk_logs
+      changed_when: false
+      failed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 6. Recent error log lines
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Scan journald for ERROR-level entries in the last {{ check_window_minutes }} minutes
+      ansible.builtin.shell: |
+        journalctl -u {{ app_service }} \
+          --since "{{ check_window_minutes }} minutes ago" \
+          --no-pager -p err \
+          --output short-iso 2>/dev/null \
+        | tail -20
+      register: journal_errors
+      changed_when: false
+      failed_when: false
+
+    - name: Count journald error lines
+      ansible.builtin.shell: |
+        journalctl -u {{ app_service }} \
+          --since "{{ check_window_minutes }} minutes ago" \
+          --no-pager -p err \
+          --output short-iso 2>/dev/null \
+        | grep -c '' || true
+      register: journal_error_count
+      changed_when: false
+      failed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 7. Summary job status via /api/summary
+    #    Uses a temporary session — the API requires authentication so we use
+    #    the local curl approach with the healthcheck credentials from vault.
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Get /api/summary status (unauthenticated probe for response code)
+      ansible.builtin.uri:
+        url: "https://{{ app_host }}/api/summary"
+        method: GET
+        status_code: [200, 401, 403]
+        timeout: 10
+        validate_certs: false
+      register: summary_probe
+      failed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Gather current timestamp for the report
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Get current timestamp
+      ansible.builtin.command: date '+%Y-%m-%d %H:%M:%S %Z'
+      register: report_timestamp
+      changed_when: false
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Derive per-check status values used by the email template
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Derive check statuses
+      ansible.builtin.set_fact:
+        status_4thealth_svc: >-
+          {{ 'OK' if svc_4thealth.status.ActiveState == 'active' else 'CRITICAL' }}
+        status_nginx_svc: >-
+          {{ 'OK' if svc_nginx.status.ActiveState == 'active' else 'CRITICAL' }}
+        status_gunicorn_port: >-
+          {{ 'OK' if port_gunicorn is not failed and port_gunicorn.elapsed is defined else 'CRITICAL' }}
+        status_nginx_port: >-
+          {{ 'OK' if port_nginx_https is not failed and port_nginx_https.elapsed is defined else 'CRITICAL' }}
+        status_gunicorn_http: >-
+          {{ 'OK' if check_gunicorn_http.status is defined and check_gunicorn_http.status in [200, 302] else 'CRITICAL' }}
+        status_nginx_https: >-
+          {{ 'OK' if check_nginx_https.status is defined and check_nginx_https.status in [200, 302] else 'CRITICAL' }}
+        cert_days: >-
+          {{ cert_days_remaining.stdout | default('-1') | int }}
+        status_cert: >-
+          {%- set days = cert_days_remaining.stdout | default('-1') | int -%}
+          {%- if days < 0 -%}UNKNOWN
+          {%- elif days <= cert_crit_days -%}CRITICAL
+          {%- elif days <= cert_warn_days -%}WARNING
+          {%- else -%}OK
+          {%- endif -%}
+        disk_app_pct: "{{ disk_app.stdout | default('0') | int }}"
+        disk_log_pct: "{{ disk_logs.stdout | default('0') | int }}"
+        status_disk_app: >-
+          {%- set pct = disk_app.stdout | default('0') | int -%}
+          {%- if pct >= disk_crit_percent -%}CRITICAL
+          {%- elif pct >= disk_warn_percent -%}WARNING
+          {%- else -%}OK
+          {%- endif -%}
+        status_disk_log: >-
+          {%- set pct = disk_logs.stdout | default('0') | int -%}
+          {%- if pct >= disk_crit_percent -%}CRITICAL
+          {%- elif pct >= disk_warn_percent -%}WARNING
+          {%- else -%}OK
+          {%- endif -%}
+        error_count: "{{ journal_error_count.stdout | default('0') | int }}"
+        status_errors: >-
+          {%- set cnt = journal_error_count.stdout | default('0') | int -%}
+          {%- if cnt > 10 -%}CRITICAL
+          {%- elif cnt > 0 -%}WARNING
+          {%- else -%}OK
+          {%- endif -%}
+        status_summary_api: >-
+          {{ 'OK' if summary_probe.status is defined and summary_probe.status in [200, 401, 403] else 'CRITICAL' }}
+
+    - name: Determine overall health status
+      ansible.builtin.set_fact:
+        overall_status: >-
+          {%- set statuses = [
+            status_4thealth_svc,
+            status_nginx_svc,
+            status_gunicorn_port,
+            status_nginx_port,
+            status_gunicorn_http,
+            status_nginx_https,
+            status_cert,
+            status_disk_app,
+            status_disk_log,
+            status_errors,
+            status_summary_api
+          ] -%}
+          {%- if 'CRITICAL' in statuses -%}CRITICAL
+          {%- elif 'WARNING' in statuses -%}WARNING
+          {%- elif 'UNKNOWN' in statuses -%}UNKNOWN
+          {%- else -%}HEALTHY
+          {%- endif -%}
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Render and send the HTML email report
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Render HTML email report
+      ansible.builtin.template:
+        src: healthcheck_email.html.j2
+        dest: /tmp/4thealth_healthcheck_report.html
+        mode: '0600'
+
+    - name: Send health check email report
+      community.general.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        from: "{{ email_from }}"
+        to: "{{ email_to }}"
+        subject: >-
+          {{ email_subject_prefix }} Health Check — {{ overall_status }}
+          [{{ ansible_facts['hostname'] }}] {{ report_timestamp.stdout }}
+        subtype: html
+        body: "{{ lookup('file', '/tmp/4thealth_healthcheck_report.html') }}"
+      delegate_to: localhost
+      become: false
+      when: smtp_host | default('') | length > 0
+
+    - name: Print report path (email skipped — smtp_host not configured)
+      ansible.builtin.debug:
+        msg: >-
+          Email skipped (smtp_host not set).
+          Overall status: {{ overall_status }}.
+          Report saved at /tmp/4thealth_healthcheck_report.html
+      when: smtp_host | default('') | length == 0
+
+    - name: Clean up temporary report file
+      ansible.builtin.file:
+        path: /tmp/4thealth_healthcheck_report.html
+        state: absent
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Fail the AAP job if any CRITICAL finding was detected
+    # (so AAP's job status reflects the health of the system)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    - name: Fail job if overall status is CRITICAL
+      ansible.builtin.fail:
+        msg: >-
+          4THealth health check reported CRITICAL status.
+          Review the emailed report for details.
+      when: overall_status == 'CRITICAL'

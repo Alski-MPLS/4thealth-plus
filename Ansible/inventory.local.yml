@@ -1,0 +1,9 @@
+---
+all:
+  children:
+    4thealth_prod:
+      hosts:
+        4thealth-prod.yourdomain.com:
+          ansible_user: deploy
+          ansible_become: true
+          ansible_become_method: sudo

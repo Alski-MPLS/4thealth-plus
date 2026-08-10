@@ -1,1 +1,72 @@
-.worktrees/
+# Environment
+.env
+.env.*
+!.env.example
+
+# TLS certs
+certs/*.pem
+
+# Runtime data (do not track sensitive config)
+users.json
+groups.json
+infra_targets.json
+policy_db.json
+summary_history.json
+smtp_config.json
+config_diff_jobs.json
+device_review_jobs.json
+backup_config.json
+protocol_severity.json
+api_tokens.json
+app_settings.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Packaging
+dist/
+build/
+*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# Tools
+.uv/
+
+# OS
+.DS_Store
+temp_secret.txt
+
+# Docker
+docker-compose.override.yml
+
+# Claude Code memory index (internal AI assistant file — not project content)
+MEMORY.md
+memory/
+
+# Local planning notes (not for repo)
+todo-cis.md
+todo.md
+
+# Graphify build outputs
+graphify-out/
+
+# Claude Code local user overrides
+.claude/settings.local.json
+.claude/CLAUDE.local.md
+
+.githooks/
+
+# Superpowers AI planning workspace (internal — not project content)
+.superpowers/

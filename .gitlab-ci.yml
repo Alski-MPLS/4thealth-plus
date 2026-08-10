@@ -1,0 +1,59 @@
+# CI/CD pipeline for 4THealth
+# Runs on the self-hosted RHEL runner (tagged "4thealth").
+# The runner is installed on the same server as the app, so the deploy
+# stage can restart the systemd service directly — no inbound access from
+# GitLab is required; the runner polls GitLab outbound.
+
+stages:
+  - lint
+  - test
+  - deploy
+
+# ── Shared config ──────────────────────────────────────────────────────────────
+default:
+  tags:
+    - 4thealth  # only run on our self-hosted runner
+
+.install_deps: &install_deps
+  before_script:
+    - uv sync --extra prod
+
+# ── Lint ───────────────────────────────────────────────────────────────────────
+ruff:
+  stage: lint
+  <<: *install_deps
+  script:
+    - uv run ruff check app/ wsgi.py manage_users.py
+    - uv run ruff format --check app/ wsgi.py manage_users.py
+
+# ── Test ───────────────────────────────────────────────────────────────────────
+pytest:
+  stage: test
+  <<: *install_deps
+  variables:
+    SECRET_KEY: "ci-test-secret-not-used-in-prod"
+    FMG_PRIMARY_HOST: "127.0.0.1"
+    TZ: "America/Chicago"
+  script:
+    - uv run pytest tests/ -v --tb=short --junitxml=junit.xml -o "junit_family=xunit2"
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    expire_in: 7 days
+
+# ── Deploy (main branch only) ─────────────────────────────────────────────────
+deploy:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - sudo -u 4thealth git -C /opt/4thealth fetch origin main
+    - sudo -u 4thealth git -C /opt/4thealth reset --hard origin/main
+    - sudo -u 4thealth bash -c "cd /opt/4thealth && $(which uv) sync --extra prod"
+    - sudo systemctl restart 4thealth
+    - sleep 3
+    - sudo systemctl is-active --quiet 4thealth && echo "Service is running" || (echo "Service failed to start" && exit 1)
+  environment:
+    name: production
+    url: https://algowb01:5443

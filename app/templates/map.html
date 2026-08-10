@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Map — 4THealth{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}?v=1.9.4" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.css') }}?v=1.5.3" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.Default.css') }}?v=1.5.3" />
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>&#127760; Device Location Map</h2>
+    <span class="last-updated" id="mapLastUpdated"></span>
+  </div>
+  <div class="page-header-actions" id="mapHeaderActions">
+    <button class="btn btn-primary" id="mapRefreshBtn" style="display:none">&#8635; Refresh Data</button>
+  </div>
+</div>
+
+<!-- Status / progress bar -->
+<div class="map-status-bar" id="mapStatusBar" style="display:none">
+  <span class="map-status-spinner" id="mapStatusSpinner">&#8635;</span>
+  <span id="mapStatusText">Loading device locations…</span>
+  <span id="mapProgressDetail" class="map-progress-detail"></span>
+</div>
+
+<!-- ADOM filter + legend -->
+<div class="map-controls" id="mapControls" style="display:none">
+  <div class="map-legend" id="mapLegend"></div>
+  <div class="map-filter-row">
+    <label class="map-filter-label">ADOM filter:</label>
+    <div id="mapAdomFilters" class="map-adom-filters"></div>
+    <button class="btn btn-sm map-filter-btn" id="mapSelectAll">All</button>
+    <button class="btn btn-sm map-filter-btn" id="mapSelectNone">None</button>
+  </div>
+  <div class="map-stats" id="mapStats"></div>
+  <div class="map-health-ledger" id="mapHealthLedger" style="display:none"></div>
+</div>
+
+<!-- Map container -->
+<div id="mapContainer" class="map-container">
+  <div class="map-loading" id="mapLoading">
+    <span class="summary-spinner"></span> Loading map data…
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}?v=1.9.4"></script>
+<script src="{{ url_for('static', filename='vendor/markercluster/leaflet.markercluster.js') }}?v=1.5.3"></script>
+<script>
+  window._perms = {
+    isAdmin:   {{ (current_role == 'admin') | tojson }},
+    firewalls: {{ ('firewalls' in allowed_tabs) | tojson }},
+  };
+</script>
+<script src="{{ url_for('static', filename='js/map.js') }}?v=6"></script>
+{% endblock %}

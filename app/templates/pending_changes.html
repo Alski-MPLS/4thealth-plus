@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Config-Delta — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Config-Delta</h2>
+    <span class="last-updated" id="pcStatus"></span>
+  </div>
+</div>
+
+<!-- Top controls -->
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="pcAdom">ADOM</label>
+    <select id="pcAdom" class="form-select" style="max-width:280px">
+      <option value="">— select ADOM —</option>
+    </select>
+    <span id="pcAdomLoading" class="text-muted"
+          style="display:none;font-style:italic;font-size:.88rem;margin-left:.5rem">Loading…</span>
+
+    <!-- Export All Devices -->
+    <div style="display:flex;align-items:center;gap:.35rem;margin-left:.75rem">
+      <select id="pcExportAllFmt" class="form-select form-select-sm" style="width:80px"
+              disabled>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <button id="pcExportAllBtn" class="btn btn-sm btn-secondary"
+              disabled title="Export pending diffs for all devices in this ADOM"
+              onclick="exportAllDevices(document.getElementById('pcExportAllFmt').value)">
+        Export All
+      </button>
+    </div>
+  </div>
+
+  <!-- Bulk export progress (hidden until a bulk run is active) -->
+  <div id="pcBulkProgress" style="display:none;margin-top:.4rem;font-size:.88rem;color:var(--text-muted)">
+    <span id="pcBulkStatus"></span>
+    <a href="#" id="pcBulkCancel"
+       onclick="cancelBulkExport();return false"
+       style="margin-left:.75rem;color:var(--text-muted);text-decoration:none">× Cancel</a>
+  </div>
+</div>
+
+<!-- Two-column layout -->
+<div class="pc-layout">
+
+  <!-- Left: device list -->
+  <div class="pc-layout-left">
+    <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;flex-wrap:wrap">
+      <input type="text" id="pcSearch" class="form-control"
+             placeholder="Search by name or IP…"
+             style="max-width:220px;font-size:.88rem" />
+      <label style="display:flex;align-items:center;gap:.3rem;font-size:.88rem;white-space:nowrap;cursor:pointer"
+             title="Shows only devices where FortiManager has committed changes that have not yet been installed on the device.">
+        <input type="checkbox" id="pcPendingOnly" />
+        Pending only
+        <span class="help-icon" title="Shows only devices where FortiManager has committed changes that have not yet been installed on the device.">?</span>
+      </label>
+    </div>
+
+    <div id="pcDeviceError" class="alert alert-danger" style="display:none"></div>
+
+    <table class="table table-sm" id="pcDeviceTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>IP</th>
+          <th>Platform</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="pcDeviceTbody">
+        <tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Select an ADOM to load devices.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:.5rem">
+      <div id="pcPager" style="display:flex;gap:.25rem"></div>
+      <span id="pcDeviceCount" class="text-muted" style="font-size:.82rem"></span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:.4rem;font-size:.85rem">
+        <label for="pcPageSize" style="white-space:nowrap">Show</label>
+        <select id="pcPageSize" class="form-select form-select-sm" style="width:70px">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: diff panel -->
+  <div class="pc-layout-right">
+    <div id="pcDiffPanel">
+      <p style="color:var(--text-muted);font-style:italic">Select a device to view pending changes.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Export queue footer (hidden until queue has items) -->
+<div id="pcQueueFooter"
+     style="display:none;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);
+            padding:.6rem 1rem;align-items:center;gap:.75rem;flex-wrap:wrap;z-index:100">
+  <strong style="font-size:.85rem;white-space:nowrap">Export Queue:</strong>
+  <div id="pcQueueChips" style="display:flex;gap:.4rem;flex-wrap:wrap;flex:1"></div>
+  <div style="display:flex;gap:.4rem;margin-left:auto">
+    <button class="btn btn-xs" id="pcExportCsv">CSV</button>
+    <button class="btn btn-xs" id="pcExportJson">JSON</button>
+    <button class="btn btn-xs" id="pcExportPdf">PDF</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>const PC_USER = {{ user | tojson }};</script>
+<script src="{{ url_for('static', filename='js/pending_changes.js') }}"></script>
+{% endblock %}

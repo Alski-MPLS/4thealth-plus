@@ -1,0 +1,15 @@
+{
+  "_comment": "Copy to protocol_severity.json to override defaults. Valid values: secure, insecure, info, null.",
+  "https":          "secure",
+  "ssh":            "secure",
+  "snmp":           "secure",
+  "fabric":         "secure",
+  "http":           "insecure",
+  "telnet":         "insecure",
+  "http-redirect":  "insecure",
+  "ping":           "info",
+  "fgfm":           "info",
+  "capwap":         "info",
+  "speed-test":     "info",
+  "ftm":            "info"
+}

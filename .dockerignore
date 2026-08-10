@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+certs/
+.env
+users.json
+groups.json
+infra_targets.json
+policy_db.json
+ansible/
+*.md
+*.html
+.git/
+.claude/

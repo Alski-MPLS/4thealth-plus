@@ -1,0 +1,14 @@
+---
+# Example inventory for the 4THealth health check playbook.
+# In AAP, define your inventory in the UI instead of using a flat file.
+# This file is provided as a reference for the expected host/group structure.
+
+all:
+  children:
+    4thealth_prod:
+      hosts:
+        4thealth-prod.yourdomain.com:
+          ansible_user: deploy              # SSH user with sudo for systemctl/journalctl
+          ansible_become: true
+          ansible_become_method: sudo
+          # ansible_ssh_private_key_file: ~/.ssh/id_deploy  # set in AAP credentials

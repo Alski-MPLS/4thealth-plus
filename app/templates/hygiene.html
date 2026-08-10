@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% block title %}Rule Review — 4THealth{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Rule Review</h2>
+    <span class="last-updated" id="lastRunLabel"></span>
+  </div>
+</div>
+
+<!-- ── Section 1: Policy Rules ──────────────────────────────────────────────── -->
+<div class="rr-section-label">Policy Rules</div>
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="pvAdom">ADOM</label>
+    <select id="pvAdom" class="form-select">
+      <option value="">— select ADOM —</option>
+    </select>
+
+    <label for="pvPackage">Policy Package</label>
+    <select id="pvPackage" class="form-select" disabled>
+      <option value="">— select package —</option>
+    </select>
+
+    <span style="color:var(--text-muted);font-size:.82rem;align-self:center">or</span>
+    <input type="text" id="pvPkgSearch" class="form-control" placeholder="Type package name…" style="max-width:240px" />
+    <button class="btn btn-primary" id="pvPkgLoadBtn">Load</button>
+    <span id="pvPkgError" style="font-size:.8rem;color:#ef4444;display:none"></span>
+
+    <span id="pvLoading" class="text-muted" style="display:none;font-style:italic">Loading policies…</span>
+  </div>
+
+  <!-- Indeterminate progress bar -->
+  <div class="pv-progress-wrap" id="pvProgressWrap">
+    <div class="pv-progress-track"><div class="pv-progress-bar"></div></div>
+  </div>
+</div>
+
+<!-- Policy Viewer (shown after package is selected) -->
+<div id="policyView" style="display:none;margin-top:1rem">
+  <div class="results-close-row">
+    <button class="btn btn-sm btn-ghost" id="pvCloseBtn" title="Close policy view">&#10005; Close</button>
+  </div>
+  <div class="hygiene-results-header" style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <span id="policyViewTitle" class="hygiene-summary-line"></span>
+      <span id="pvObjBadge" style="display:none;font-size:.78rem;color:var(--text-muted);font-style:italic">&#8987; Loading group/subnet details…</span>
+    </div>
+    <div class="hygiene-export-row">
+      <button class="btn btn-sm" id="pvExportCsv">&#8659; CSV</button>
+      <button class="btn btn-sm" id="pvExportJson">&#8659; JSON</button>
+      <button class="btn btn-sm" id="pvExportPdf">&#8659; PDF</button>
+    </div>
+  </div>
+
+  <!-- Search + field filter + page size -->
+  <div class="route-controls" style="margin:.5rem 0 .5rem;flex-wrap:wrap;gap:.5rem">
+    <input type="text" id="pvSearch" class="form-control"
+      placeholder="Search (supports regex): name, comment, src IP, dst IP, service, ID…"
+      style="max-width:440px" />
+    <select id="pvFieldFilter" class="form-select-sm" title="Search in specific field only">
+      <option value="">All fields</option>
+      <option value="name">Name</option>
+      <option value="id">ID</option>
+      <option value="comment">Comment</option>
+      <option value="srcaddr">Source</option>
+      <option value="dstaddr">Destination</option>
+      <option value="service">Service</option>
+      <option value="srcintf">Src Interface</option>
+      <option value="dstintf">Dst Interface</option>
+    </select>
+    <label style="font-size:.8rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap">
+      <input type="checkbox" id="pvRegexMode" /> Regex
+    </label>
+    <select id="policyPageSize" class="form-select-sm">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+    <span class="text-muted" style="font-size:.8rem">per page</span>
+  </div>
+
+  <div id="pvSearchError" class="text-muted" style="font-size:.78rem;color:#ef4444;display:none;margin-bottom:.25rem"></div>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <div class="table-controls">
+      <span id="policyCount"></span>
+    </div>
+    <table class="data-table" id="policyTable">
+      <thead>
+        <tr>
+          <th style="width:3.5rem">#</th>
+          <th style="width:5.5rem">Status</th>
+          <th style="width:4.5rem">Action</th>
+          <th style="min-width:8rem">Name / ID</th>
+          <th>Source</th>
+          <th>Destination</th>
+          <th>Service</th>
+          <th style="min-width:6rem">Interfaces</th>
+          <th>Comment</th>
+        </tr>
+      </thead>
+      <tbody id="policyTbody"></tbody>
+    </table>
+    <div class="pagination" id="policyPagination"></div>
+  </div>
+</div>
+
+<!-- ── Section 2: Object Lookup ──────────────────────────────────────────────── -->
+<div class="rr-section-label" style="margin-top:2rem">Object Lookup</div>
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="olAdom">ADOM</label>
+    <select id="olAdom" class="form-select">
+      <option value="">— select ADOM —</option>
+    </select>
+
+    <label for="olQuery" style="white-space:nowrap">Object Name</label>
+    <input type="text" id="olQuery" class="form-control" placeholder="Enter name or partial name…" style="max-width:300px" disabled />
+    <button class="btn btn-primary" id="olSearchBtn" disabled>Search</button>
+    <span id="olRunning" class="text-muted" style="display:none;font-style:italic">Searching…</span>
+  </div>
+
+  <!-- Indeterminate progress bar -->
+  <div class="pv-progress-wrap" id="olProgressWrap">
+    <div class="pv-progress-track"><div class="pv-progress-bar"></div></div>
+  </div>
+</div>
+
+<!-- Object Lookup Results -->
+<div id="olResults" style="display:none;margin-top:1rem">
+  <div class="results-close-row">
+    <button class="btn btn-sm btn-ghost" id="olCloseBtn" title="Close object lookup">&#10005; Close</button>
+  </div>
+  <div class="obj-lookup-result-header">
+    <span id="olSummary" class="obj-lookup-summary"></span>
+    <div class="hygiene-export-row">
+      <button class="btn btn-sm" id="olExportCsv">&#8659; CSV</button>
+      <button class="btn btn-sm" id="olExportJson">&#8659; JSON</button>
+      <button class="btn btn-sm" id="olExportPdf">&#8659; PDF</button>
+    </div>
+  </div>
+
+  <!-- Filter + page size -->
+  <div class="route-controls" style="margin:.5rem 0 .5rem;flex-wrap:wrap;gap:.5rem">
+    <input type="text" id="olFilter" class="form-control" placeholder="Filter results…" style="max-width:320px" />
+    <select id="olPageSize" class="form-select-sm">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+    <span class="text-muted" style="font-size:.8rem">per page</span>
+  </div>
+
+  <div class="table-wrapper">
+    <div class="table-controls">
+      <span id="olCount"></span>
+    </div>
+    <table class="data-table" id="olTable">
+      <thead>
+        <tr>
+          <th style="width:3.5rem">#</th>
+          <th>Name</th>
+          <th style="width:7rem">Type</th>
+          <th style="width:7rem">Category</th>
+          <th>Detail / Members</th>
+          <th style="width:7.5rem"></th>
+        </tr>
+      </thead>
+      <tbody id="olTbody"></tbody>
+    </table>
+    <div class="pagination" id="olPagination"></div>
+  </div>
+</div>
+
+<div id="olError" class="alert alert-danger" style="display:none"></div>
+
+<!-- Where Used Modal -->
+<div class="modal-overlay hidden" id="olWhereUsedModal" role="dialog" aria-modal="true">
+  <div class="modal-dialog" style="max-width:min(95vw,960px)">
+    <div class="modal-header">
+      <span id="olWhereUsedTitle">Where Used</span>
+      <button class="modal-close" id="olWhereUsedClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="olWhereUsedBody">
+      <div id="olWhereUsedSpinner" style="text-align:center;padding:2rem">
+        <span class="spinner"></span> Loading…
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 3: Interface Lookup ──────────────────────────────────────────── -->
+<div class="rr-section-label" style="margin-top:2rem">Interface Lookup</div>
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="ilAdom">ADOM</label>
+    <select id="ilAdom" class="form-select">
+      <option value="">— select ADOM —</option>
+    </select>
+
+    <label for="ilQuery" style="white-space:nowrap">IP Address(es)</label>
+    <input type="text" id="ilQuery" class="form-control" placeholder="Enter one or more IPs, comma-separated…" style="max-width:360px" disabled />
+    <button class="btn btn-primary" id="ilSearchBtn" disabled>Search</button>
+    <span id="ilRunning" class="text-muted" style="display:none;font-style:italic">Searching…</span>
+  </div>
+
+  <div class="pv-progress-wrap" id="ilProgressWrap">
+    <div class="pv-progress-track"><div class="pv-progress-bar"></div></div>
+  </div>
+</div>
+
+<!-- Interface Lookup Results -->
+<div id="ilResults" style="display:none;margin-top:1rem">
+  <div id="ilSkippedWarn" class="alert alert-warning" style="display:none;margin-bottom:.5rem"></div>
+  <div class="results-close-row">
+    <button class="btn btn-sm btn-ghost" id="ilCloseBtn" title="Close interface lookup">&#10005; Close</button>
+  </div>
+  <div class="obj-lookup-result-header">
+    <span id="ilSummary" class="obj-lookup-summary"></span>
+    <div class="hygiene-export-row">
+      <button class="btn btn-sm" id="ilExportCsv">&#8659; CSV</button>
+      <button class="btn btn-sm" id="ilExportJson">&#8659; JSON</button>
+      <button class="btn btn-sm" id="ilExportPdf">&#8659; PDF</button>
+    </div>
+  </div>
+
+  <div class="route-controls" style="margin:.5rem 0 .5rem;flex-wrap:wrap;gap:.5rem">
+    <input type="text" id="ilFilter" class="form-control" placeholder="Filter results…" style="max-width:320px" />
+    <select id="ilPageSize" class="form-select-sm">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+    <span class="text-muted" style="font-size:.8rem">per page</span>
+  </div>
+
+  <div class="table-wrapper">
+    <div class="table-controls">
+      <span id="ilCount"></span>
+    </div>
+    <table class="data-table" id="ilTable">
+      <thead>
+        <tr>
+          <th style="width:3.5rem">#</th>
+          <th>Device</th>
+          <th>Interface</th>
+          <th style="width:7rem">VDOM</th>
+          <th>IP / Mask</th>
+          <th style="width:7rem">Type</th>
+          <th style="width:5rem">Status</th>
+        </tr>
+      </thead>
+      <tbody id="ilTbody"></tbody>
+    </table>
+    <div class="pagination" id="ilPagination"></div>
+  </div>
+</div>
+
+<div id="ilError" class="alert alert-danger" style="display:none"></div>
+
+<!-- ── Section 4: NAT Lookup ─────────────────────────────────────────────────── -->
+<div class="rr-section-label" style="margin-top:2rem">NAT Lookup</div>
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="nlAdom">ADOM</label>
+    <select id="nlAdom" class="form-select">
+      <option value="">— select ADOM —</option>
+    </select>
+
+    <label for="nlQuery" style="white-space:nowrap">IP Address</label>
+    <input type="text" id="nlQuery" class="form-control" placeholder="Enter an IP to search VIPs and IP Pools…" style="max-width:360px" disabled />
+    <button class="btn btn-primary" id="nlSearchBtn" disabled>Search</button>
+    <span id="nlRunning" class="text-muted" style="display:none;font-style:italic">Searching…</span>
+  </div>
+
+  <div class="pv-progress-wrap" id="nlProgressWrap">
+    <div class="pv-progress-track"><div class="pv-progress-bar"></div></div>
+  </div>
+</div>
+
+<!-- NAT Lookup Results -->
+<div id="nlResults" style="display:none;margin-top:1rem">
+  <div class="results-close-row">
+    <button class="btn btn-sm btn-ghost" id="nlCloseBtn" title="Close NAT lookup">&#10005; Close</button>
+  </div>
+  <div class="obj-lookup-result-header">
+    <span id="nlSummary" class="obj-lookup-summary"></span>
+    <div class="hygiene-export-row">
+      <button class="btn btn-sm" id="nlExportCsv">&#8659; CSV</button>
+      <button class="btn btn-sm" id="nlExportJson">&#8659; JSON</button>
+      <button class="btn btn-sm" id="nlExportPdf">&#8659; PDF</button>
+    </div>
+  </div>
+
+  <div class="route-controls" style="margin:.5rem 0 .5rem;flex-wrap:wrap;gap:.5rem">
+    <input type="text" id="nlFilter" class="form-control" placeholder="Filter results…" style="max-width:320px" />
+    <select id="nlPageSize" class="form-select-sm">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+    <span class="text-muted" style="font-size:.8rem">per page</span>
+  </div>
+
+  <div class="table-wrapper">
+    <div class="table-controls">
+      <span id="nlCount"></span>
+    </div>
+    <table class="data-table" id="nlTable">
+      <thead>
+        <tr>
+          <th style="width:3.5rem">#</th>
+          <th style="width:6rem">Type</th>
+          <th>Name</th>
+          <th>External IP</th>
+          <th>Mapped / Pool IP</th>
+          <th style="width:6rem">Interface</th>
+          <th>Protocol / Port</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="nlTbody"></tbody>
+    </table>
+    <div class="pagination" id="nlPagination"></div>
+  </div>
+</div>
+
+<div id="nlError" class="alert alert-danger" style="display:none"></div>
+
+<!-- ── Section 5: Hygiene Analysis ──────────────────────────────────────────── -->
+<div class="rr-section-label" style="margin-top:2rem">Hygiene Analysis</div>
+<div class="hygiene-selectors">
+  <div class="hygiene-selector-row">
+    <label for="hygieneAdom">ADOM</label>
+    <select id="hygieneAdom" class="form-select">
+      <option value="">— select ADOM —</option>
+    </select>
+
+    <label for="hygienePackage">Policy Package</label>
+    <select id="hygienePackage" class="form-select" disabled>
+      <option value="">— select package —</option>
+    </select>
+  </div>
+
+  <div class="hygiene-selector-row" style="margin-top:.75rem">
+    <label>Checks to run</label>
+    <div class="checkbox-group" id="hygieneChecks">
+      {% for key, name in checks.items() %}
+      <label class="checkbox-label">
+        <input type="checkbox" name="hygiene_check" value="{{ key }}" checked />
+        {{ name }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <button class="btn btn-primary" id="hygieneRunBtn" disabled>&#9654; Run Analysis</button>
+    <span id="hygieneRunning" class="text-muted" style="display:none;font-style:italic">Analysing…</span>
+  </div>
+</div>
+
+<!-- Hygiene Results -->
+<div id="hygieneResults" style="display:none;margin-top:1.5rem">
+  <div class="results-close-row">
+    <button class="btn btn-sm btn-ghost" id="hygieneCloseBtn" title="Close hygiene results">&#10005; Close</button>
+  </div>
+  <div class="hygiene-results-header">
+    <div>
+      <span id="hygieneSummary" class="hygiene-summary-line"></span>
+    </div>
+    <div class="hygiene-export-row">
+      <button class="btn btn-sm" id="exportCsv">&#8659; CSV</button>
+      <button class="btn btn-sm" id="exportJson">&#8659; JSON</button>
+      <button class="btn btn-sm" id="exportPdf">&#8659; PDF</button>
+    </div>
+  </div>
+
+  <!-- Filter + page size -->
+  <div class="route-controls" style="margin:.75rem 0 .5rem">
+    <input type="text" id="hygieneFilter" class="form-control" placeholder="Filter by rule name, check type, or detail…" style="max-width:380px" />
+    <select id="hygienePageSize" class="form-select-sm">
+      <option value="10">10</option>
+      <option value="25" selected>25</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+    </select>
+    <span class="text-muted" style="font-size:.8rem">per page</span>
+    <select id="hygieneCheckFilter" class="form-select-sm">
+      <option value="">All checks</option>
+    </select>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <div class="table-controls">
+      <span id="hygieneCount"></span>
+    </div>
+    <table class="data-table" id="hygieneTable">
+      <thead>
+        <tr>
+          <th style="width:5rem">#</th>
+          <th>Rule Name / ID</th>
+          <th>Check</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody id="hygieneTbody"></tbody>
+    </table>
+    <div class="pagination" id="hygienePagination"></div>
+  </div>
+</div>
+
+<div id="hygieneError" class="alert alert-danger" style="display:none"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hygiene.js') }}?v=15"></script>
+{% endblock %}
