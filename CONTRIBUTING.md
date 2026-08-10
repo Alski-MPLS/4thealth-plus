@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to 4THealth.
+Thanks for your interest in contributing to 4THealth+.
 
 ## Getting started
 

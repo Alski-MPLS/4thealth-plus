@@ -2,7 +2,7 @@
 
 Linux Server + Nginx + Gunicorn
 
-This guide walks through deploying 4THealth on RHEL/Rocky/AlmaLinux or Ubuntu/Debian.
+This guide walks through deploying 4THealth+ on RHEL/Rocky/AlmaLinux or Ubuntu/Debian.
 
 - Gunicorn as the WSGI application server
 - Nginx as the TLS-terminating reverse proxy

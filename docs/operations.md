@@ -1,6 +1,6 @@
 # Operations Guide
 
-Monitoring, updates, maintenance, and CI/CD for 4THealth in production.
+Monitoring, updates, maintenance, and CI/CD for 4THealth+ in production.
 
 ---
 

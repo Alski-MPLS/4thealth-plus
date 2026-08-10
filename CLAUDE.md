@@ -328,7 +328,7 @@ Runtime data file (gitignored). Copy from a known-good source or build from scra
 
 #### Standalone production deployment
 
-4THealth can run standalone (without FortiManager) if only the Zone Policy tab is needed. The only requirement is `policy_db.json`. All other tabs degrade gracefully when FMG is unreachable. To deploy standalone:
+4THealth+ can run standalone (without FortiManager) if only the Zone Policy tab is needed. The only requirement is `policy_db.json`. All other tabs degrade gracefully when FMG is unreachable. To deploy standalone:
 
 1. Copy `policy_db.json` to the project root
 2. Create `users.json` with at least one account (`python manage_users.py add ...`)

@@ -1,6 +1,6 @@
 # Authentication Guide
 
-4THealth supports three authentication methods that can be combined:
+4THealth+ supports three authentication methods that can be combined:
 
 | Method | When to use |
 |---|---|
@@ -14,7 +14,7 @@ Local accounts in `users.json` serve as a fallback for all remote auth methods. 
 
 ## Role-Based Access Control (RBAC)
 
-4THealth ships with a fully-implemented RBAC system — no code changes are required.
+4THealth+ ships with a fully-implemented RBAC system — no code changes are required.
 
 ### How It Works
 
@@ -211,10 +211,10 @@ FAC handles the AD bind and group lookups internally — the app only needs to s
 
 **How it works:**
 
-1. 4THealth sends a RADIUS Access-Request (username + password) to FAC.
+1. 4THealth+ sends a RADIUS Access-Request (username + password) to FAC.
 2. FAC validates credentials against AD and resolves the user's AD groups.
 3. FAC returns a RADIUS Access-Accept with a `Filter-Id` or `Class` attribute carrying the role group name.
-4. 4THealth reads that attribute, maps it to `admin` or `viewer`, and proceeds with the normal session setup.
+4. 4THealth+ reads that attribute, maps it to `admin` or `viewer`, and proceeds with the normal session setup.
 
 ### FAC-1 — FortiAuthenticator Configuration
 
@@ -322,7 +322,7 @@ RADIUS_GROUP_VIEWER=4THealth-Viewers
 
 Both `RADIUS_HOST` and `RADIUS_HOST_2` use the same shared secret. On a primary FAC timeout, the app automatically retries the secondary FAC before falling back to local `users.json` accounts.
 
-#### FAC-2.5 Map RADIUS Users to 4THealth Groups
+#### FAC-2.5 Map RADIUS Users to 4THealth+ Groups
 
 RADIUS-authenticated users are not listed in `users.json`. Tab and ADOM permissions are resolved at login time using the AD group names returned by FAC.
 
@@ -375,10 +375,10 @@ Emergency recovery: set `RADIUS_ENABLED=false` in `.env` and restart with `sudo 
 
 - [ ] RADIUS shared secret is at least 32 random characters and stored only in `.env` (mode `640`)
 - [ ] FAC RADIUS policy default action is **Reject**
-- [ ] FAC client IP is locked to the 4THealth server IP — no wildcard `/0` subnet
-- [ ] UDP port 1812 is open from the 4THealth server to both FAC IPs and closed from everywhere else
+- [ ] FAC client IP is locked to the 4THealth+ server IP — no wildcard `/0` subnet
+- [ ] UDP port 1812 is open from the 4THealth+ server to both FAC IPs and closed from everywhere else
 - [ ] `RADIUS_AUTH_METHOD` matches the FAC client config (both PAP, or both CHAP)
 - [ ] Local `admin` account in `users.json` is retained as an emergency fallback
 - [ ] `RADIUS_TIMEOUT` is set low enough (10 s) so failover latency is predictable
 - [ ] FAC is configured to log all authentication attempts for audit trail
-- [ ] AD group names added to 4THealth groups match exactly what FAC sends (verify with `radtest -x`)
+- [ ] AD group names added to 4THealth+ groups match exactly what FAC sends (verify with `radtest -x`)

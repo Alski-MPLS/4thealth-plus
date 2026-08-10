@@ -1,8 +1,8 @@
-# 4THealth — Container Deployment Guide
+# 4THealth+ — Container Deployment Guide
 
 ## Should You Containerize?
 
-**Yes — 4THealth is a good candidate for Docker.** The app is a single Python process
+**Yes — 4THealth+ is a good candidate for Docker.** The app is a single Python process
 with no compiled native dependencies, no GPU, and no OS-level daemons. Containerizing it
 gives you:
 

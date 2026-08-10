@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>4THealth — Developer Guide</title>
+  <title>4THealth+ — Developer Guide</title>
   <style>
     :root {
       --bg: #f5f6fa;
@@ -190,7 +190,7 @@
   <nav class="sidebar">
     <ul>
       <li class="section">Overview</li>
-      <li><a href="#overview">What is 4THealth?</a></li>
+      <li><a href="#overview">What is 4THealth+?</a></li>
       <li><a href="#architecture">Application Architecture</a></li>
       <li><a href="#data-flow">Data Flow</a></li>
 
@@ -227,16 +227,16 @@
   <main>
 
     <!-- ════════════ OVERVIEW ════════════ -->
-    <h1>4THealth Developer Guide</h1>
-    <p>This document is the technical reference for developers contributing to, deploying, or extending 4THealth. It covers how the application is structured, how each authentication mode works, all API endpoints, and step-by-step procedures for both local development and production deployment.</p>
+    <h1>4THealth+ Developer Guide</h1>
+    <p>This document is the technical reference for developers contributing to, deploying, or extending 4THealth+. It covers how the application is structured, how each authentication mode works, all API endpoints, and step-by-step procedures for both local development and production deployment.</p>
 
     <div class="callout info">
-      <p><strong>Read-only by design.</strong> 4THealth never writes to FortiManager or any FortiGate device. Every API call uses <code>get</code> or <code>monitor</code> methods only.</p>
+      <p><strong>Read-only by design.</strong> 4THealth+ never writes to FortiManager or any FortiGate device. Every API call uses <code>get</code> or <code>monitor</code> methods only.</p>
     </div>
 
     <hr id="overview" />
-    <h2>What is 4THealth?</h2>
-    <p>4THealth is a Flask web dashboard that surfaces live health data for a Fortinet infrastructure stack. All data comes through <strong>FortiManager's JSON-RPC API</strong> — the app has no direct connection to individual FortiGate firewalls.</p>
+    <h2>What is 4THealth+?</h2>
+    <p>4THealth+ is a Flask web dashboard that surfaces live health data for a Fortinet infrastructure stack. All data comes through <strong>FortiManager's JSON-RPC API</strong> — the app has no direct connection to individual FortiGate firewalls.</p>
 
     <p>It provides six main views:</p>
     <table>
@@ -545,7 +545,7 @@ uv run python manage_users.py secret</code></pre>
     <hr id="prod-overview" />
     <h2>Production Overview</h2>
 
-    <p>In production 4THealth runs behind Nginx as a reverse proxy, with gunicorn serving the WSGI application. See <code>production.md</code> for the full step-by-step guide. This section covers the authentication and RBAC differences from development.</p>
+    <p>In production 4THealth+ runs behind Nginx as a reverse proxy, with gunicorn serving the WSGI application. See <code>production.md</code> for the full step-by-step guide. This section covers the authentication and RBAC differences from development.</p>
 
     <div class="diagram">Internet / Internal Network
         │  HTTPS :443
@@ -1123,7 +1123,7 @@ const tabs = [
 
     <hr />
     <p style="font-size:.8rem; color: var(--muted); margin-top: 2rem;">
-      4THealth Developer Guide &nbsp;·&nbsp; Updated May 2026 &nbsp;·&nbsp;
+      4THealth+ Developer Guide &nbsp;·&nbsp; Updated May 2026 &nbsp;·&nbsp;
       For deployment instructions see <a href="production.md">production.md</a> &nbsp;·&nbsp;
       For user-facing features see <a href="README.md">README.md</a>
     </p>

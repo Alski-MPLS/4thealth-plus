@@ -1,6 +1,6 @@
 # Backup and Restore Guide
 
-This guide covers what to back up, how to do it manually per deployment type, and how to restore 4THealth on a new server.
+This guide covers what to back up, how to do it manually per deployment type, and how to restore 4THealth+ on a new server.
 
 The application code itself lives in git — only runtime data (secrets, user accounts, config, certificates, and persistent state) needs backing up.
 
