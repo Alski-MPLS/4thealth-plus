@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Source of truth for "what to copy": `git -C ~/code/github/web/4thealth ls-files`, minus `.claude/settings.json` and everything under `docs/superpowers/`.
+- Source of truth for "what to copy": `git -C ~/code/github/web/4thealth ls-files`, minus `.claude/settings.json`, everything under `docs/superpowers/`, and `temp_secret.txt` (tracked but empty in the source; excluded during execution because Claude Code's security classifier blocks any git operation naming a file called `temp_secret.txt` regardless of content — decided 2026-08-10).
 - Rebrand rule (applies to every task below): rename "4THealth" → "4THealth+" (and "4thealth" → "4thealth+" where lowercase form is itself prose, not an identifier) **only** in text a human reads as the product name — page titles, nav bar, CLI `--help` text, generated report/email subjects and bodies, and prose in docs/comments. **Never** rename: the Python package name (`pyproject.toml`, `uv.lock`), Docker image/container names, systemd service names, GitLab CI runner tags/service-account names, Ansible inventory group names/variable names, RADIUS NAS-Identifier bytes, filesystem path defaults (`/opt/4thealth`, `/var/backups/4thealth`, `/var/log/4thealth`, temp-file prefixes), or example AD/RADIUS group names in `.env.example`/`admin.html` placeholders.
 - Every task that changes a `.py` file whose tests assert on the changed string must update those tests in the same task, and the full suite must stay green.
 - Target repo has no remote configured; do not push anywhere in this plan.
@@ -20,7 +20,7 @@
 ### Task 1: Bulk copy source tree
 
 **Files:**
-- Create: ~152 files under `~/code/github/ai/4thealth-plus/` (mirrors 4THealth's tracked tree)
+- Create: ~151 files under `~/code/github/ai/4thealth-plus/` (mirrors 4THealth's tracked tree)
 
 **Interfaces:**
 - Produces: the full 4THealth+ file tree that every later task edits in place.
@@ -29,8 +29,8 @@
 
 ```bash
 cd ~/code/github/web/4thealth
-git ls-files | grep -v '^docs/superpowers/' | grep -v '^\.claude/settings\.json$' > /tmp/4thealth-manifest.txt
-wc -l /tmp/4thealth-manifest.txt   # expect 152
+git ls-files | grep -v '^docs/superpowers/' | grep -v '^\.claude/settings\.json$' | grep -v '^temp_secret\.txt$' > /tmp/4thealth-manifest.txt
+wc -l /tmp/4thealth-manifest.txt   # expect 151
 
 rsync -av --files-from=/tmp/4thealth-manifest.txt \
   ~/code/github/web/4thealth/ ~/code/github/ai/4thealth-plus/
@@ -41,7 +41,7 @@ rsync -av --files-from=/tmp/4thealth-manifest.txt \
 ```bash
 cd ~/code/github/ai/4thealth-plus
 find . -type f -not -path './.git/*' -not -path './docs/superpowers/specs/*' -not -path './plan.md' | wc -l
-# expect 152 (docs/superpowers/specs/ and plan.md are pre-existing files from the brainstorming phase, excluded from this count on purpose)
+# expect 151 (docs/superpowers/specs/ and plan.md are pre-existing files from the brainstorming phase, excluded from this count on purpose)
 diff <(sort /tmp/4thealth-manifest.txt) <(cd ~/code/github/ai/4thealth-plus && git ls-files -o --exclude-standard -- . ':!docs/superpowers/specs' ':!plan.md' | sort)
 # expect no output (every manifest file landed, nothing extra)
 ```
