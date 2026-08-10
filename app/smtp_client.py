@@ -1,4 +1,4 @@
-"""SMTP email client — wraps stdlib smtplib for 4THealth scheduled exports."""
+"""SMTP email client — wraps stdlib smtplib for 4THealth+ scheduled exports."""
 
 from __future__ import annotations
 
@@ -108,8 +108,8 @@ def test_connection(to_address: str) -> dict:
     try:
         send_email(
             to_address,
-            "4THealth SMTP Test",
-            "<p>SMTP connection test from 4THealth — if you received this, SMTP is working.</p>",
+            "4THealth+ SMTP Test",
+            "<p>SMTP connection test from 4THealth+ — if you received this, SMTP is working.</p>",
         )
         return {"ok": True}
     except Exception as exc:

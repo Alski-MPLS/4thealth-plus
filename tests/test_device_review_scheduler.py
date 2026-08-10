@@ -295,7 +295,7 @@ def test_build_attachment_pdf_html(jobs_path):
     att = sched._build_attachment_dr("Corp", "pdf", results, "2026-08-01T00:00:00Z", [])
     html = att["data"].decode()
     assert "Corp" in html
-    assert "4THealth" in html
+    assert "4THealth+" in html
     assert "fw-01" in html
 
 

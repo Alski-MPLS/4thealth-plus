@@ -52,7 +52,7 @@ def cmd_secret(_):
     print("\nAdd this to your .env file as:\nSECRET_KEY=" + key)
 
 
-parser = argparse.ArgumentParser(description="4THealth user management")
+parser = argparse.ArgumentParser(description="4THealth+ user management")
 sub = parser.add_subparsers(dest="command", required=True)
 
 p_add = sub.add_parser("add", help="Add or update a user")

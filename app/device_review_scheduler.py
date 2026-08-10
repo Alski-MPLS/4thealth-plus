@@ -253,7 +253,7 @@ def _execute_job(job_id: str) -> None:
         }
 
         generated_at = record["ran_at"]
-        subject = f"4THealth Device Review — {adom} — {generated_at[:10]}"
+        subject = f"4THealth+ Device Review — {adom} — {generated_at[:10]}"
         check_summary = _build_check_summary(results, checks)
         body_html = _build_summary_html(adom, results, generated_at, check_summary)
         attachment = _build_attachment_dr(
@@ -609,7 +609,7 @@ def _build_summary_html(
     host_summary_html = _build_host_summary_html(results)
 
     return f"""
-<h2 style="font-family:sans-serif">4THealth Device Review — {_esc(adom)}</h2>
+<h2 style="font-family:sans-serif">4THealth+ Device Review — {_esc(adom)}</h2>
 <p style="font-family:sans-serif;color:#6b7280">Generated: {generated_at}</p>
 <p style="font-family:sans-serif">Devices scanned: {len(results)}</p>
 {error_note}
@@ -673,7 +673,7 @@ def _build_attachment_dr(
     if fmt == "csv":
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(["# 4THealth Device Review"])
+        w.writerow(["# 4THealth+ Device Review"])
         w.writerow([f"# ADOM: {adom}"])
         w.writerow([f"# Generated: {generated_at}"])
         w.writerow([])
@@ -876,7 +876,7 @@ def _build_pdf_html_dr(
 </style>
 </head>
 <body>
-<h1>4THealth Device Review Scheduler</h1>
+<h1>4THealth+ Device Review Scheduler</h1>
 <div class="meta">
   ADOM: {_esc(adom)} &nbsp;|&nbsp;
   Devices scanned: {len(results)} &nbsp;|&nbsp;

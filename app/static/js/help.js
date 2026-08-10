@@ -9,8 +9,8 @@ const SECTIONS = [
     id:    'overview',
     label: 'Overview',
     html: `
-<h3>What is 4THealth?</h3>
-<p>4THealth is a read-only monitoring dashboard for your Fortinet infrastructure. It connects to FortiManager's API and displays live health data — no configuration changes are ever made to any device.</p>
+<h3>What is 4THealth+?</h3>
+<p>4THealth+ is a read-only monitoring dashboard for your Fortinet infrastructure. It connects to FortiManager's API and displays live health data — no configuration changes are ever made to any device.</p>
 <h3>Navigation</h3>
 <ul>
   <li><strong>Dashboard</strong> — live health cards for FortiManager, FortiAnalyzer, and FortiCollector appliances.</li>
@@ -539,7 +539,7 @@ const SECTIONS = [
   <div class="faq-a">Select an ADOM from the dropdown first. If the dropdown itself is empty, FortiManager returned no ADOMs — check that the API account has the correct read permissions in FortiManager.</div>
 
   <div class="faq-q">Can I use this dashboard to make changes to a device?</div>
-  <div class="faq-a">No. 4THealth is strictly read-only. All API calls use <code>action: get</code> — no configuration endpoints are ever called.</div>
+  <div class="faq-a">No. 4THealth+ is strictly read-only. All API calls use <code>action: get</code> — no configuration endpoints are ever called.</div>
 
   <div class="faq-q">How do I log out?</div>
   <div class="faq-a">Click the <strong>Logout</strong> button in the top-right corner. Your session expires automatically after 1 hour of inactivity regardless.</div>

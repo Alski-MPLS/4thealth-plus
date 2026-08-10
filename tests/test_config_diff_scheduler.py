@@ -131,7 +131,7 @@ def test_build_pdf_html_contains_header_fields(jobs_path):
     assert "2026-07-24" in html
     assert "10:30:00" in html
     assert "Devices scanned" in html
-    assert "4THealth Config-Delta Scheduler" in html
+    assert "4THealth+ Config-Delta Scheduler" in html
 
 
 def test_build_pdf_html_omits_pkg_pending_row_when_zero(jobs_path):
@@ -151,7 +151,7 @@ def test_build_attachment_html_contains_header(jobs_path):
 
     html = att["data"].decode()
     assert "Corp" in html
-    assert "4THealth" in html
+    assert "4THealth+" in html
 
 
 def test_build_attachment_json_has_exported_at(jobs_path):
