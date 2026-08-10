@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="csrf-token" content="{{ csrf_token }}" />
-  <title>{% block title %}4THealth{% endblock %}</title>
+  <title>{% block title %}4THealth+{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=11" />
   {% block head %}{% endblock %}
 </head>
@@ -17,7 +17,7 @@
       <path d="M48 6 L86 26 L48 46 L10 26 Z" fill="#2f9e6e"/>
       <path d="M22 58 H36 L41 47 L48 68 L54 55 L58 62 H74" stroke="#141a24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     </svg>
-    4THealth
+    4THealth+
   </div>
   <nav class="topbar-nav">
     {% for key, tab in nav_registry.items() %}
