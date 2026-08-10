@@ -45,9 +45,13 @@ def cmd_list(_):
 
 
 def cmd_secret(_):
-    from app.auth import generate_secret_key
+    # Generate the key without importing the `app` package: app/__init__.py
+    # eagerly imports app.config, which raises RuntimeError until SECRET_KEY
+    # is already set in the environment -- a chicken-and-egg problem for the
+    # very command meant to produce that value in the first place.
+    import secrets
 
-    key = generate_secret_key()
+    key = secrets.token_hex(32)
     print(f"Generated SECRET_KEY:\n{key}")
     print("\nAdd this to your .env file as:\nSECRET_KEY=" + key)
 
