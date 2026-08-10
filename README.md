@@ -1,10 +1,13 @@
-<img alt="4tHealth logo" src="logo.svg" width="240">
+<img alt="4tHealth+ logo" src="logo.svg" width="240">
 
-# 4THealth — Network Operations Dashboard
+# 4THealth+ — Network Operations Dashboard
 
 A read-only web dashboard for monitoring FortiManager, FortiAnalyzer, FortiAuthenticator,
 and managed FortiGate firewalls. All FortiGate data flows **through FortiManager's
 JSON-RPC API** — no direct device connections are made.
+
+4THealth+ is a fork and successor of 4THealth, rebuilt as the foundation for adding
+AI-assisted change analysis to the Rule Validation tab (see Roadmap below).
 
 > **Note**: This is an independent open-source project and is not affiliated with, endorsed by, or supported by Fortinet, Inc. FortiManager is a trademark of Fortinet, Inc.
 
@@ -44,6 +47,18 @@ JSON-RPC API** — no direct device connections are made.
 | **Admin** | *(admin only)* Group management, tab-level and ADOM-level permissions, map region configuration, log viewer, External API management, Backup configuration |
 | **Auto-refresh** | Configurable: manual, 1 min, 5 min (default), 10 min, 15 min |
 | **Light / Dark mode** | Toggle in the nav bar; preference saved in `localStorage` |
+
+---
+
+## Roadmap
+
+4THealth+'s **Rule Validation** tab currently performs zone-policy-based pre-change
+analysis (unchanged from 4THealth). A future phase will add AI-assisted analysis to
+this tab: engineers will be able to describe a requested change and get research,
+standards validation, and peer-review-package generation powered by an LLM of the
+engineer's choice (Claude by default, with Codex and Ollama — local or cloud — also
+supported). That work is not yet implemented and will be designed and built as its
+own phase.
 
 ---
 
@@ -189,7 +204,7 @@ Definitions are stored in `groups.json` (gitignored — copy from `groups.exampl
 1. An admin creates a group (e.g. `NOC-Team`).
 2. The admin selects which **navigation tabs** the group can see.
 3. Optionally, the admin restricts the group to specific **ADOMs**.
-4. The admin adds members via individual local accounts or **AD / RADIUS Groups** (e.g. `4THealth-NOC`). Any RADIUS user whose `Filter-Id` or `Class` reply attribute matches is automatically treated as a member at login.
+4. The admin adds members via individual local accounts or **AD / RADIUS Groups** (e.g. `4THealth+-NOC`). Any RADIUS user whose `Filter-Id` or `Class` reply attribute matches is automatically treated as a member at login.
 5. On next login, each member's session reflects the union of allowed tabs across all groups they belong to.
 
 **Admins always have full access** regardless of group membership.
