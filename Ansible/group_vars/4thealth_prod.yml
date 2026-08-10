@@ -30,4 +30,4 @@ summary_stale_hours: 26     # summary job considered stale after this many hours
 smtp_port: 25
 # email_from: noreply-monitoring@yourdomain.com
 # email_to: network-ops-team@yourdomain.com
-email_subject_prefix: "[4THealth]"
+email_subject_prefix: "[4THealth+]"

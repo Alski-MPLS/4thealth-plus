@@ -1,7 +1,7 @@
 ---
-# 4THealth Production Health Check
+# 4THealth+ Production Health Check
 #
-# Runs a comprehensive set of checks against the production 4THealth server
+# Runs a comprehensive set of checks against the production 4THealth+ server
 # and sends a formatted HTML email summary to the configured team distribution
 # list. Designed to run as a scheduled AAP (Ansible Automation Platform) job.
 #
@@ -40,7 +40,7 @@
 #   safe defaults and commented-out placeholders — it is safe to commit.
 #
 # Required variables (set in group_vars/4thealth_prod.yml or as AAP extra_vars):
-#   app_host            FQDN or IP of the 4THealth server (used for curl and TLS checks)
+#   app_host            FQDN or IP of the 4THealth+ server (used for curl and TLS checks)
 #   app_port            Internal Gunicorn port (default: 8100)
 #   app_https_port      Public HTTPS port (default: 443)
 #   app_path            Application root on the server (default: /opt/4thealth)
@@ -57,9 +57,9 @@
 #   smtp_port           SMTP port (default: 25)
 #   email_from          Sender address                  ← supply via AAP / Vault, not group_vars
 #   email_to            Recipient address or DL         ← supply via AAP / Vault, not group_vars
-#   email_subject_prefix Subject prefix (default: "[4THealth]")
+#   email_subject_prefix Subject prefix (default: "[4THealth+]")
 
-- name: 4THealth Production Health Check
+- name: 4THealth+ Production Health Check
   hosts: 4thealth_prod
   gather_facts: true
   become: true
@@ -78,7 +78,7 @@
     check_window_minutes: 60
     summary_stale_hours: 26
     smtp_port: 25
-    email_subject_prefix: "[4THealth]"
+    email_subject_prefix: "[4THealth+]"
     # Populated dynamically below — do not set here
     _findings: []
 
@@ -367,6 +367,6 @@
     - name: Fail job if overall status is CRITICAL
       ansible.builtin.fail:
         msg: >-
-          4THealth health check reported CRITICAL status.
+          4THealth+ health check reported CRITICAL status.
           Review the emailed report for details.
       when: overall_status == 'CRITICAL'

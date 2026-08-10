@@ -1,4 +1,4 @@
-# CI/CD pipeline for 4THealth
+# CI/CD pipeline for 4THealth+
 # Runs on the self-hosted RHEL runner (tagged "4thealth").
 # The runner is installed on the same server as the app, so the deploy
 # stage can restart the systemd service directly — no inbound access from
