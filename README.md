@@ -269,7 +269,7 @@ Ansible/
 | [docs/deployment.md](docs/deployment.md) | Linux production deployment: OS setup, Gunicorn, Nginx, systemd (Phases 1–3) |
 | [docs/authentication.md](docs/authentication.md) | RBAC, AD/LDAP setup, RADIUS/FortiAuthenticator setup, AD migration guide |
 | [docs/hardening.md](docs/hardening.md) | File permissions, fail2ban, Nginx rate limiting, SELinux, master security checklist |
-| [docs/operations.md](docs/operations.md) | Monitoring, updates, backup, SSL renewal, GitLab CI/CD |
+| [docs/operations.md](docs/operations.md) | Monitoring, updates, backup, SSL renewal |
 | [container.md](container.md) | Docker and Docker Compose deployment |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
