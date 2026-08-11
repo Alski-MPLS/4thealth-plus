@@ -3,7 +3,6 @@ Prepared for future AD integration by keeping an abstract authenticate() entry p
 """
 
 import json
-import secrets
 import string
 from pathlib import Path
 
@@ -105,7 +104,3 @@ def list_users() -> list:
 def get_user_role(username: str) -> str:
     users = _load_users()
     return users.get(username, {}).get("role", "viewer")
-
-
-def generate_secret_key() -> str:
-    return secrets.token_hex(32)

@@ -204,7 +204,7 @@ Definitions are stored in `groups.json` (gitignored — copy from `groups.exampl
 1. An admin creates a group (e.g. `NOC-Team`).
 2. The admin selects which **navigation tabs** the group can see.
 3. Optionally, the admin restricts the group to specific **ADOMs**.
-4. The admin adds members via individual local accounts or **AD / RADIUS Groups** (e.g. `4THealth+-NOC`). Any RADIUS user whose `Filter-Id` or `Class` reply attribute matches is automatically treated as a member at login.
+4. The admin adds members via individual local accounts or **AD / RADIUS Groups** (e.g. `4THealth-NOC`). Any RADIUS user whose `Filter-Id` or `Class` reply attribute matches is automatically treated as a member at login.
 5. On next login, each member's session reflects the union of allowed tabs across all groups they belong to.
 
 **Admins always have full access** regardless of group membership.
