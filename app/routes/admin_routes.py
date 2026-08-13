@@ -28,8 +28,8 @@ Tab registry:
   GET    /admin/api/tabs             known tab keys + display names
 
 App settings (JSON):
-  GET    /admin/api/settings         {"external_api_enabled": bool}
-  PUT    /admin/api/settings         {"external_api_enabled": bool}
+  GET    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
+  PUT    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
 
 External API tokens (JSON):
   GET    /admin/api/tokens           list tokens (hashes never returned)
@@ -275,6 +275,12 @@ def api_settings_put():
         set_setting("external_api_enabled", enabled)
         app_log(
             "INFO", "admin", "External API toggled", by=session["user"], enabled=enabled
+        )
+    if "ai_assist_enabled" in data:
+        enabled = bool(data["ai_assist_enabled"])
+        set_setting("ai_assist_enabled", enabled)
+        app_log(
+            "INFO", "admin", "AI Assist toggled", by=session["user"], enabled=enabled
         )
     return jsonify(get_all_settings())
 

@@ -12,6 +12,7 @@
       if (btn.dataset.panel === 'logs') loadLogs();
       if (btn.dataset.panel === 'map-regions' && !_mapRegionsLoaded) loadMapRegions();
       if (btn.dataset.panel === 'external-api' && !_extApiLoaded) loadExtApi();
+      if (btn.dataset.panel === 'ai-assist' && !_aiAssistLoaded) loadAiAssist();
       if (btn.dataset.panel === 'scheduled') { loadSMTP(); loadJobs(); loadDRJobs(); }
       if (btn.dataset.panel === 'backup') { window.loadBackupConfig(); window.loadBackupJobs(); }
     });
@@ -380,6 +381,36 @@
     if (!confirm('Revoke this token? Any program using it will lose access immediately.')) return;
     const res = await fetch(`/admin/api/tokens/${encodeURIComponent(btn.dataset.tokenId)}`, { method: 'DELETE' });
     if (res.ok) reloadTokens();
+  });
+
+  // ══════════════════════  AI ASSIST  ═══════════════════════════════════════
+
+  let _aiAssistLoaded = false;
+
+  async function loadAiAssist() {
+    const settingsRes = await fetch('/admin/api/settings');
+    if (!settingsRes.ok) return;
+    const settings = await settingsRes.json();
+    document.getElementById('aiAssistEnabled').checked = !!settings.ai_assist_enabled;
+    _aiAssistLoaded = true;
+  }
+
+  document.getElementById('btnSaveAiAssistToggle').addEventListener('click', async () => {
+    const enabled = document.getElementById('aiAssistEnabled').checked;
+    const msgEl = document.getElementById('aiAssistToggleMsg');
+    const res = await fetch('/admin/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_assist_enabled: enabled }),
+    });
+    if (res.ok) {
+      msgEl.textContent = enabled ? 'AI Assist enabled.' : 'AI Assist disabled.';
+      msgEl.style.color = enabled ? 'var(--success)' : 'var(--warning)';
+    } else {
+      msgEl.textContent = 'Failed to save.';
+      msgEl.style.color = 'var(--danger)';
+    }
+    setTimeout(() => { msgEl.textContent = ''; }, 3000);
   });
 
   // New token modal
