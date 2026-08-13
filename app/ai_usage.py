@@ -1,0 +1,151 @@
+"""AI Assist usage/cost tracking — SQLite-backed.
+
+One row per AI Assist LLM call (success or failure), recorded from inside
+each provider's ``narrate()`` (see app/llm/*_provider.py). SQLite (stdlib,
+no new dependency) rather than another flat JSON file: this is genuinely
+time-series data needing range queries, unlike this app's other JSON
+runtime-data files.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import sqlite3
+from pathlib import Path
+
+_DB_PATH = Path(__file__).parent.parent / "ai_usage.db"
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    cost_usd REAL NOT NULL,
+    success INTEGER NOT NULL,
+    error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_timestamp ON ai_usage (timestamp);
+"""
+
+
+def _init_db() -> None:
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        conn.executescript(_SCHEMA)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def record_usage(
+    *,
+    provider: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cost_usd: float,
+    success: bool,
+    error: str | None = None,
+) -> None:
+    """Record one AI Assist LLM call. Never raises — a tracking failure
+    must never break the actual AI Assist request that triggered it."""
+    try:
+        _init_db()
+        conn = sqlite3.connect(_DB_PATH)
+        try:
+            conn.execute(
+                "INSERT INTO ai_usage (timestamp, provider, model, input_tokens, "
+                "output_tokens, cost_usd, success, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    dt.datetime.now(dt.timezone.utc).isoformat(),
+                    provider, model, input_tokens, output_tokens, cost_usd,
+                    1 if success else 0, error,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+
+def query_usage(start: dt.datetime, end: dt.datetime) -> list[dict]:
+    """Raw usage rows with timestamp in [start, end], oldest first."""
+    _init_db()
+    conn = sqlite3.connect(_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM ai_usage WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp",
+            (start.isoformat(), end.isoformat()),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "id": r["id"],
+            "timestamp": r["timestamp"],
+            "provider": r["provider"],
+            "model": r["model"],
+            "input_tokens": r["input_tokens"],
+            "output_tokens": r["output_tokens"],
+            "cost_usd": r["cost_usd"],
+            "success": bool(r["success"]),
+            "error": r["error"],
+        }
+        for r in rows
+    ]
+
+
+def usage_summary(start: dt.datetime, end: dt.datetime, num_buckets: int = 24) -> dict:
+    """Bucket the [start, end] range into num_buckets equal time slices,
+    plus running totals for the whole range."""
+    rows = query_usage(start, end)
+
+    span = (end - start).total_seconds()
+    bucket_seconds = span / num_buckets if num_buckets > 0 else span
+    buckets = []
+    for i in range(num_buckets):
+        b_start = start + dt.timedelta(seconds=bucket_seconds * i)
+        b_end = start + dt.timedelta(seconds=bucket_seconds * (i + 1))
+        buckets.append({
+            "start": b_start.isoformat(), "end": b_end.isoformat(),
+            "count": 0, "cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0,
+        })
+
+    total_calls = 0
+    total_cost = 0.0
+    total_failures = 0
+    total_input = 0
+    total_output = 0
+
+    for row in rows:
+        total_calls += 1
+        total_cost += row["cost_usd"]
+        total_input += row["input_tokens"]
+        total_output += row["output_tokens"]
+        if not row["success"]:
+            total_failures += 1
+
+        ts = dt.datetime.fromisoformat(row["timestamp"])
+        if bucket_seconds > 0:
+            idx = int((ts - start).total_seconds() // bucket_seconds)
+            idx = max(0, min(idx, num_buckets - 1))
+        else:
+            idx = 0
+        buckets[idx]["count"] += 1
+        buckets[idx]["cost_usd"] += row["cost_usd"]
+        buckets[idx]["input_tokens"] += row["input_tokens"]
+        buckets[idx]["output_tokens"] += row["output_tokens"]
+
+    return {
+        "buckets": buckets,
+        "total_calls": total_calls,
+        "total_cost_usd": total_cost,
+        "total_failures": total_failures,
+        "total_input_tokens": total_input,
+        "total_output_tokens": total_output,
+    }

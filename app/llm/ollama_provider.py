@@ -16,6 +16,9 @@ class OllamaProvider(LLMProvider):
         self._model = Config.OLLAMA_MODEL
 
     def narrate(self, system_prompt: str, user_prompt: str) -> str:
+        from app.ai_usage import record_usage
+        from app.llm.pricing import estimate_cost
+
         headers = {}
         if Config.OLLAMA_API_KEY:
             headers["Authorization"] = f"Bearer {Config.OLLAMA_API_KEY}"
@@ -35,6 +38,21 @@ class OllamaProvider(LLMProvider):
             )
             resp.raise_for_status()
             data = resp.json()
-            return data.get("message", {}).get("content", "")
+            text = data.get("message", {}).get("content", "")
         except Exception as exc:
+            record_usage(provider="ollama", model=self._model, input_tokens=0,
+                          output_tokens=0, cost_usd=0.0, success=False, error=str(exc))
             raise LLMError(f"Ollama API call failed: {exc}") from exc
+
+        try:
+            input_tokens = int(data.get("prompt_eval_count", 0) or 0)
+            output_tokens = int(data.get("eval_count", 0) or 0)
+        except Exception:
+            input_tokens = output_tokens = 0
+        record_usage(
+            provider="ollama", model=self._model,
+            input_tokens=input_tokens, output_tokens=output_tokens,
+            cost_usd=estimate_cost("ollama", self._model, input_tokens, output_tokens),
+            success=True,
+        )
+        return text

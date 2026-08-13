@@ -15,6 +15,7 @@ services:
       - ./policy_db.json:/app/policy_db.json:rw
       - ./naming.yaml:/app/naming.yaml:ro
       - ./review_requirements.yaml:/app/review_requirements.yaml:ro
+      - ./ai_usage.db:/app/ai_usage.db:rw
       - ./app_settings.json:/app/app_settings.json:rw
       - ./api_tokens.json:/app/api_tokens.json:rw
       - ./smtp_config.json:/app/smtp_config.json:rw
