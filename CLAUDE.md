@@ -278,6 +278,52 @@ Three-step workflow: define flows → select policy packages → review results.
 - Generates FortiOS CLI snippets for new/modified rules
 - Verdict categories: PERMITTED / MODIFIABLE / NEW_RULE_NEEDED / EXPLICITLY_DENIED
 
+#### AI Assist mode
+
+Alongside the bulk CSV/XLSX table workflow above, the Rule Validation tab offers an
+**AI Assist** panel for single-request change analysis: an engineer describes one
+change (source/destination/service/target firewalls, plus optional ticket ID and
+justification) and gets back a deterministic verdict, an AI-written narrative
+report, and a peer-review package.
+
+**`app/planner/`** — the deterministic change-planning engine, ported from
+`~/code/github/ai/4tanalyst`'s `planner/` package (see
+`app/planner/VENDORED_FROM.md` for full provenance, the exact source commit, and
+the file-by-file adaptation table). It computes the verdict — the LLM never does.
+Key modules: `models.py` (data classes), `matching.py` (address/service resolution),
+`standards.py` (naming/risk/logging/approval lookups), `cli_gen.py` (FortiOS CLI
+generation), `insertion.py` (rule placement), `fetch.py` (pulls live FMG + zone-policy
+data), `engine.py` (`plan_change()` — the single entry point that ties it all
+together). `catalogs.py` and `zone_adapter.py` (`ZoneDBAdapter`) are 4THealth+-native
+adapters that let the ported engine call `app.fmg_client.FMGClient` and
+`app.zone_db` in-process instead of over HTTP with separate credentials.
+
+**`app/llm/`** — a thin, provider-agnostic narration layer (`get_provider()` in
+`app/llm/__init__.py`) that turns the planner's already-computed structured result
+into prose. The LLM only explains the plan — it never computes or edits any value
+in it. `AI_PROVIDER` in `.env` selects the backend: `claude` (default,
+`claude_provider.py`), `codex` (`codex_provider.py`), or `ollama`
+(`ollama_provider.py`, local or cloud via `OLLAMA_HOST`/`OLLAMA_MODEL`). Every
+provider implements the same `LLMProvider.narrate(system_prompt, user_prompt) ->
+str` interface (`app/llm/base.py`) and raises `LLMError` on any failure — the
+route catches this and returns the deterministic plan with a
+`narrative_error` note rather than losing the result.
+
+**Feature flag:** AI Assist is off by default, gated by the `ai_assist_enabled`
+setting in `app_settings.json` (same atomic-write pattern as
+`external_api_enabled`). Toggle it in **Admin → AI Assist**. `GET
+/api/rule-review/ai-assist-status` reports current availability to the frontend;
+the panel hides itself when disabled.
+
+**Endpoint:** `POST /api/rule-review/ai-assist` — body: `{ src, dst, service,
+firewalls: [{device, adom}], ticket_id?, justification?, src_group?, dst_group? }`.
+Runs `plan_change()` against live FMG data, then narrates the result with the
+configured provider. Returns `{ plan, narrative, narrative_error, path_relevance
+}` — `plan` (the deterministic verdict) is always present; `narrative` is
+best-effort and `narrative_error` explains why it's null on failure. A
+misconfigured/unreachable FortiManager surfaces as `502`; the LLM call is never
+allowed to turn a good plan into a lost result.
+
 ### Zone Policy tab
 
 `GET /zone-policy` → `zone_policy.html` + `zone_policy.js`

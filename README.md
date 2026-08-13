@@ -52,13 +52,16 @@ AI-assisted change analysis to the Rule Validation tab (see Roadmap below).
 
 ## Roadmap
 
-4THealth+'s **Rule Validation** tab currently performs zone-policy-based pre-change
-analysis (unchanged from 4THealth). A future phase will add AI-assisted analysis to
-this tab: engineers will be able to describe a requested change and get research,
-standards validation, and peer-review-package generation powered by an LLM of the
-engineer's choice (Claude by default, with Codex and Ollama — local or cloud — also
-supported). That work is not yet implemented and will be designed and built as its
-own phase.
+4THealth+'s **Rule Validation** tab now includes an **AI Assist** mode: engineers
+describe a single change request (source/destination/service/target firewalls)
+and get a deterministic verdict — computed by a ported, tested change-planning
+engine, not the LLM — plus an AI-written report and peer-review package.
+Multi-provider support: Claude (default), Codex, and Ollama (local or cloud),
+configured server-wide via `.env`. The existing bulk CSV/XLSX table workflow is
+unchanged and does not use the LLM.
+
+Deferred to a future phase: FortiManager read-only query tools, feedback/audit
+history, `.xlsx` intake parsing, and per-request provider selection.
 
 ---
 
