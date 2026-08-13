@@ -40,6 +40,9 @@ No new RBAC. Any user with access to the Rule Validation tab today gets access t
 **8. Path-relevance checking is preserved as a 4THealth+-specific layer.**
 4tAnalyst's planner has no equivalent of 4THealth+'s existing interface/route-based "is this firewall actually in the traffic path" check (`check_path_relevance` in `app/rule_review.py`). That logic has no source in `planner/` to port from — it stays as-is and wraps around the planner's output on the new AI Assist path too, the same way it already wraps the existing engine's output today.
 
+**9. Track provenance so future 4tAnalyst work can be synced in later.**
+`~/code/github/ai/4tanalyst` is a separate, actively-developed repo — the user continues to build and test it independently and wants findings from that work eventually reflected here. Because the ported code is adapted (decision 2: direct in-process data access instead of HTTP), it's a fork, not a live dependency — nothing pulls in changes automatically. A marker file at `app/planner/VENDORED_FROM.md` records the exact 4tAnalyst commit SHA (and date) the port was based on. Syncing later means diffing `~/code/github/ai/4tanalyst`'s history since that SHA (`git log <sha>..HEAD -- planner/ standards_mcp/`), manually applying relevant changes, and updating the marker — not a blind merge. This workflow is also recorded as a standing memory note so a future session can run it without Alan re-explaining the setup.
+
 ## What Phase 2 Delivers
 
 An **AI Assist** mode within the existing Rule Validation tab:
