@@ -648,3 +648,142 @@ document.getElementById('rrImportFile').addEventListener('change', function () {
 loadAdoms();
 checkZoneStatus();
 document.getElementById('rrZoneStatus').style.display = '';
+
+// ── AI Assist ─────────────────────────────────────────────────────────────
+
+let aiAssistLastPayload = null;
+
+function parseAiIPs(raw) {
+  return raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).join(', ');
+}
+
+function parseAiFirewalls(raw) {
+  return raw.split(',').map(s => s.trim()).filter(Boolean).map(tok => {
+    const [device, adom] = tok.split(':').map(s => (s || '').trim());
+    return { device, adom };
+  });
+}
+
+async function checkAiAssistAvailable() {
+  try {
+    const resp = await fetch('/api/rule-review/ai-assist-status');
+    const data = await resp.json();
+    if (!data.available) {
+      document.getElementById('rrAiDisabledNotice').style.display = '';
+      document.getElementById('rrAiSubmitBtn').disabled = true;
+    }
+  } catch (e) {
+    // Non-fatal — the form's own submit handler will surface any real error.
+  }
+}
+
+async function runAiAssist(evt) {
+  evt.preventDefault();
+  const errEl = document.getElementById('rrAiError');
+  const resultEl = document.getElementById('rrAiResult');
+  const runningEl = document.getElementById('rrAiRunning');
+  errEl.style.display = 'none';
+  resultEl.style.display = 'none';
+  runningEl.style.display = '';
+
+  const payload = {
+    src: parseAiIPs(document.getElementById('rrAiSrc').value),
+    dst: parseAiIPs(document.getElementById('rrAiDst').value),
+    service: document.getElementById('rrAiSvc').value.trim(),
+    firewalls: parseAiFirewalls(document.getElementById('rrAiFirewalls').value),
+    ticket_id: document.getElementById('rrAiTicket').value.trim(),
+    justification: document.getElementById('rrAiJustification').value.trim(),
+    src_group: document.getElementById('rrAiSrcGroup').value.trim(),
+    dst_group: document.getElementById('rrAiDstGroup').value.trim(),
+  };
+
+  try {
+    const resp = await fetch('/api/rule-review/ai-assist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    runningEl.style.display = 'none';
+    if (!resp.ok) {
+      errEl.textContent = data.error || `Request failed (${resp.status})`;
+      errEl.style.display = '';
+      return;
+    }
+    renderAiResult(data);
+  } catch (e) {
+    runningEl.style.display = 'none';
+    errEl.textContent = 'Request failed: ' + e.message;
+    errEl.style.display = '';
+  }
+}
+
+function renderAiResult(data) {
+  aiAssistLastPayload = data;
+  const plan = data.plan;
+  document.getElementById('rrAiVerdict').textContent = plan.cli_status;
+  document.getElementById('rrAiPlanSummary').textContent = plan.recommendation || '';
+
+  const pathEl = document.getElementById('rrAiPathRelevance');
+  const pathEntries = Object.entries(data.path_relevance || {});
+  if (pathEntries.length) {
+    pathEl.innerHTML = pathEntries.map(([device, pr]) => {
+      const status = pr.in_path === true ? 'In path' : pr.in_path === false ? 'Not in path' : 'Unknown';
+      return `<div><strong>${device}:</strong> ${status} (${pr.confidence || 'low'} confidence)</div>`;
+    }).join('');
+    pathEl.style.display = '';
+  } else {
+    pathEl.style.display = 'none';
+  }
+
+  const narrEl = document.getElementById('rrAiNarrative');
+  const narrErrEl = document.getElementById('rrAiNarrativeError');
+  if (data.narrative) {
+    narrEl.textContent = data.narrative;
+    narrErrEl.style.display = 'none';
+  } else {
+    narrEl.textContent = '';
+    narrErrEl.textContent = 'AI summary unavailable: ' + (data.narrative_error || 'unknown error');
+    narrErrEl.style.display = '';
+  }
+
+  const cliLines = (plan.firewalls || [])
+    .filter(fw => fw.policy_cli)
+    .map(fw => `# ${fw.firewall}\n${fw.policy_cli}`);
+  document.getElementById('rrAiCliOutput').textContent = cliLines.join('\n\n');
+
+  document.getElementById('rrAiResult').style.display = '';
+}
+
+function copyAiCli() {
+  const text = document.getElementById('rrAiCliOutput').textContent;
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function downloadAiPackage() {
+  if (!aiAssistLastPayload) return;
+  const plan = aiAssistLastPayload.plan;
+  const narrative = aiAssistLastPayload.narrative || '(AI summary unavailable)';
+  const cli = document.getElementById('rrAiCliOutput').textContent;
+  const text = [
+    `Peer Review Package — ${plan.ticket_id || '(no ticket)'}`,
+    '='.repeat(60),
+    '',
+    'AI-Generated Report:',
+    narrative,
+    '',
+    'Generated CLI:',
+    cli,
+  ].join('\n');
+  const a = document.createElement('a');
+  const bl = new Blob([text], { type: 'text/plain' });
+  a.href = URL.createObjectURL(bl);
+  a.download = `peer_review_${plan.ticket_id || 'package'}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('rrAiForm')?.addEventListener('submit', runAiAssist);
+document.getElementById('rrAiCopyBtn')?.addEventListener('click', copyAiCli);
+document.getElementById('rrAiDownloadBtn')?.addEventListener('click', downloadAiPackage);
+checkAiAssistAvailable();

@@ -114,6 +114,69 @@
   </div>
 </div>
 
+<!-- ── AI Assist ────────────────────────────────────────────────────────── -->
+<section class="rr-section" id="rrAiAssistSection">
+  <h2>AI Assist <span class="badge badge-beta">Beta</span></h2>
+  <p class="rr-hint">Single-request analysis: describe one change, get a deterministic verdict plus an AI-written report and peer-review package. Requires an admin to enable AI Assist and configure a provider in Admin settings.</p>
+
+  <div id="rrAiDisabledNotice" class="rr-notice" style="display:none">
+    AI Assist is not enabled on this server. Ask an admin to enable it under Admin &rarr; AI Assist.
+  </div>
+
+  <form id="rrAiForm" class="rr-form">
+    <div class="rr-form-row">
+      <label for="rrAiSrc">Source IP(s)</label>
+      <textarea id="rrAiSrc" placeholder="10.1.2.3 or comma/newline separated"></textarea>
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiDst">Destination IP(s)</label>
+      <textarea id="rrAiDst" placeholder="10.9.8.7"></textarea>
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiSvc">Service(s)</label>
+      <input type="text" id="rrAiSvc" placeholder="tcp/8443, tcp/22">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiFirewalls">Target firewall(s)</label>
+      <input type="text" id="rrAiFirewalls" placeholder="FW01:OT-ADOM, FW02:OT-ADOM">
+      <span class="rr-field-hint">Format: DEVICE:ADOM, comma-separated for multiple</span>
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiTicket">Ticket ID</label>
+      <input type="text" id="rrAiTicket" placeholder="CHG0012345">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiJustification">Justification</label>
+      <input type="text" id="rrAiJustification" placeholder="Optional">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiSrcGroup">Source group name (optional)</label>
+      <input type="text" id="rrAiSrcGroup" placeholder="Leave blank to auto-name">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiDstGroup">Destination group name (optional)</label>
+      <input type="text" id="rrAiDstGroup" placeholder="Leave blank to auto-name">
+    </div>
+    <button type="submit" class="btn btn-primary" id="rrAiSubmitBtn">Run AI Assist</button>
+  </form>
+
+  <div id="rrAiRunning" class="rr-running" style="display:none">Running planner and generating report&hellip;</div>
+  <div id="rrAiError" class="rr-error" style="display:none"></div>
+
+  <div id="rrAiResult" style="display:none">
+    <h3>Verdict: <span id="rrAiVerdict"></span></h3>
+    <div id="rrAiPlanSummary"></div>
+    <div id="rrAiPathRelevance" class="rr-hint" style="display:none"></div>
+    <h3>AI-Generated Report</h3>
+    <div id="rrAiNarrativeError" class="rr-notice" style="display:none"></div>
+    <div id="rrAiNarrative" class="rr-narrative"></div>
+    <h3>Generated CLI</h3>
+    <pre id="rrAiCliOutput"></pre>
+    <button type="button" class="btn btn-sm" id="rrAiCopyBtn">Copy CLI</button>
+    <button type="button" class="btn btn-sm" id="rrAiDownloadBtn">Download Peer Review Package</button>
+  </div>
+</section>
+
 <!-- ── Review button ───────────────────────────────────────────────────── -->
 <div style="margin:.5rem 0 1.25rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
   <button class="btn btn-primary" id="rrReviewBtn" disabled>&#9654; Review</button>

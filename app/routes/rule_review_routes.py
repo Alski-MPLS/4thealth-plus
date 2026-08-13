@@ -9,6 +9,7 @@ API (all read-only against FortiManager; POST is for submitting work items):
   POST /api/rule-review/parse-import        — parse uploaded CSV or XLSX
   POST /api/rule-review/analyze             — run analysis
   GET  /api/rule-review/zone-status         — is zone policy DB available?
+  GET  /api/rule-review/ai-assist-status    — is AI Assist enabled?
   POST /api/rule-review/ai-assist           — single-request AI Assist (planner + LLM narration)
 """
 
@@ -351,6 +352,14 @@ def rr_analyze():
 
 
 # ── AI Assist ─────────────────────────────────────────────────────────────────
+
+
+@bp.route("/api/rule-review/ai-assist-status")
+@tab_required("rule_review")
+def rr_ai_assist_status():
+    from app.app_settings import get_setting
+
+    return jsonify({"available": get_setting("ai_assist_enabled", False)})
 
 
 @bp.route("/api/rule-review/ai-assist", methods=["POST"])
