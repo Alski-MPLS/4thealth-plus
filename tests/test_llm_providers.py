@@ -81,6 +81,17 @@ def test_codex_provider_narrate_calls_openai_sdk(monkeypatch):
     assert result == "Here is the report."
 
 
+def test_codex_provider_narrate_wraps_sdk_errors(monkeypatch):
+    monkeypatch.setattr("app.config.Config.OPENAI_API_KEY", "test-key")
+    from app.llm.codex_provider import CodexProvider
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.side_effect = RuntimeError("rate limited")
+    with patch("openai.OpenAI", return_value=fake_client):
+        provider = CodexProvider()
+        with pytest.raises(LLMError):
+            provider.narrate("system", "user")
+
+
 def test_ollama_provider_requires_host(monkeypatch):
     monkeypatch.setattr("app.config.Config.OLLAMA_HOST", "")
     from app.llm.ollama_provider import OllamaProvider
