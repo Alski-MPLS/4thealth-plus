@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.planner.matching import parse_service_request
+from app.planner.models import PlannerDataError
 from app.planner.standards import (
     load_naming,
     log_settings,
@@ -21,6 +22,28 @@ from app.planner.standards import (
     risk_level,
     rule_type_for,
 )
+
+_REPO_ROOT = Path(__file__).parent.parent
+_NAMING_EXAMPLE = _REPO_ROOT / "naming.example.yaml"
+_REVIEW_EXAMPLE = _REPO_ROOT / "review_requirements.example.yaml"
+
+
+@pytest.fixture
+def naming_path(tmp_path):
+    """A tmp_path copy of naming.example.yaml — never depends on the
+    gitignored naming.yaml existing at the repo root."""
+    dest = tmp_path / "naming.yaml"
+    dest.write_text(_NAMING_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    return dest
+
+
+@pytest.fixture
+def review_requirements_path(tmp_path):
+    """A tmp_path copy of review_requirements.example.yaml — never depends
+    on the gitignored review_requirements.yaml existing at the repo root."""
+    dest = tmp_path / "review_requirements.yaml"
+    dest.write_text(_REVIEW_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    return dest
 
 # ---------------------------------------------------------------------------
 # Naming
@@ -46,8 +69,8 @@ def test_policy_name_placeholder_without_ticket():
     assert policy_name("", "WAN", "DMZ") == "<TICKET_ID>_WAN_TO_DMZ_001"
 
 
-def test_load_naming_reads_repo_yaml():
-    naming = load_naming()
+def test_load_naming_reads_repo_yaml(naming_path):
+    naming = load_naming(path=naming_path)
     assert "fortigate" in naming["platforms"]
     assert "log_settings" in naming
 
@@ -150,23 +173,41 @@ def test_rule_type_blocked_exception_uses_dst_domain():
 # YAML-backed lookups
 # ---------------------------------------------------------------------------
 
-def test_log_settings_known_type():
-    s = log_settings("allow_it_to_ot")
+def test_log_settings_known_type(naming_path):
+    naming = load_naming(path=naming_path)
+    s = log_settings("allow_it_to_ot", naming=naming)
     assert s["log_start"] is True
     assert s["siem_forward"] is True
     assert s["retention_days"] == 365
 
 
-def test_log_settings_unknown_type_raises():
+def test_log_settings_unknown_type_raises(naming_path):
+    naming = load_naming(path=naming_path)
     with pytest.raises(KeyError):
-        log_settings("no_such_rule_type")
+        log_settings("no_such_rule_type", naming=naming)
 
 
-def test_review_requirements_critical():
-    r = review_requirements("critical")
+def test_review_requirements_critical(review_requirements_path):
+    r = review_requirements("critical", path=review_requirements_path)
     assert r["peer_review"] is True
     assert any("CISO" in a for a in r["approvers"])
     assert r["sla_hours"] == 96
+
+
+def test_load_naming_missing_file_raises_planner_data_error(tmp_path):
+    missing = tmp_path / "does-not-exist.yaml"
+    with pytest.raises(PlannerDataError) as exc_info:
+        load_naming(path=missing)
+    assert exc_info.value.source == "standards"
+    assert "does-not-exist.yaml" in exc_info.value.detail
+
+
+def test_review_requirements_missing_file_raises_planner_data_error(tmp_path):
+    missing = tmp_path / "does-not-exist.yaml"
+    with pytest.raises(PlannerDataError) as exc_info:
+        review_requirements("critical", path=missing)
+    assert exc_info.value.source == "standards"
+    assert "does-not-exist.yaml" in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------

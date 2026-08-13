@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from app.planner.matching import PortRange
+from app.planner.models import PlannerDataError
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _NAMING_FILE = _REPO_ROOT / "naming.yaml"
@@ -28,8 +29,17 @@ _MANAGEMENT_PORTS = {("tcp", 22), ("tcp", 3389), ("tcp", 23)}
 
 @lru_cache(maxsize=4)
 def _load_yaml(path: str) -> dict:
-    with open(path, encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return yaml.safe_load(fh) or {}
+    except FileNotFoundError as exc:
+        example = f"{path}.example" if not path.endswith(".yaml") else \
+            path.rsplit(".yaml", 1)[0] + ".example.yaml"
+        raise PlannerDataError(
+            "standards",
+            f"required standards file {path!r} is missing — copy it from "
+            f"{example!r} and edit it for your environment before using AI Assist.",
+        ) from exc
 
 
 def load_naming(path: Path | None = None) -> dict:

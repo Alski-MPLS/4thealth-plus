@@ -133,6 +133,62 @@ def test_plan_change_new_rule_generates_cli_and_naming():
     assert plan.naming["objects"]  # at least the two address objects + one service
 
 
+def test_group_blast_radius_uses_package_path_not_name():
+    """_group_blast_radius must call get_policies() with the package's full
+    path (folder-organized ADOMs), not just its bare name."""
+    from app.planner.engine import _group_blast_radius
+    from app.planner.fetch import DeviceSnapshot
+
+    client = MagicMock()
+    client.get_policy_packages.return_value = [
+        {"name": "MyPackage", "path": "MyFolder/MyPackage", "scope member": []}
+    ]
+    client.get_policies.return_value = []
+
+    addr_catalog = MagicMock()
+    addr_catalog.groups_containing.return_value = set()
+    snapshot = DeviceSnapshot(
+        device="FW-A", adom="OT-ADOM", packages=[], policies_by_package={},
+        addr_catalog=addr_catalog, svc_catalog=MagicMock(),
+        interfaces=[], routing_table=[],
+    )
+
+    _group_blast_radius(client, snapshot, "SOME_GROUP", exclude=("other", 1))
+
+    called_args = [c.args for c in client.get_policies.call_args_list]
+    assert ("OT-ADOM", "MyFolder/MyPackage") in called_args
+    assert ("OT-ADOM", "MyPackage") not in called_args
+
+
+def test_plan_change_blocked_verdict_generates_exception_cli():
+    """BLOCKED verdict → cli_status 'blocked_exception' and the generated
+    CLI carries an EXCEPTION comment instead of the normal ticket comment —
+    a high-consequence path that previously had zero test coverage."""
+    zc = _zone_client(verdict="BLOCKED")
+    client = MagicMock()
+    client.get_devices.return_value = [{"name": "FW-A"}]
+    client.get_policy_packages.return_value = [{"name": "Pkg1", "scope member": []}]
+    client.get_address_objects.return_value = []
+    client.get_address_groups.return_value = []
+    client.get_service_objects.return_value = []
+    client.get_service_groups.return_value = []
+    client.get_device_interfaces.return_value = [
+        {"name": "port1", "ip": "10.0.0.1 255.255.255.0"},
+        {"name": "port2", "ip": "192.168.1.1 255.255.255.0"},
+    ]
+    client.get_device_routes.return_value = []
+    client.get_policies.return_value = []  # no existing rules
+
+    plan = plan_change(
+        src="10.0.0.5", dst="192.168.1.50", service="tcp/8443",
+        ticket_id="CHG0001", firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
+        zone_client=zc, fmg_client=client,
+    )
+    fw = plan.firewalls[0]
+    assert plan.cli_status == "blocked_exception"
+    assert "EXCEPTION" in fw.policy_cli
+
+
 def test_to_report_payload_has_expected_top_level_keys():
     from app.planner.engine import to_report_payload
     zc = _zone_client()

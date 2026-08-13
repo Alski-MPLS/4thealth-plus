@@ -526,7 +526,7 @@ def _group_blast_radius(
 
     try:
         all_pkgs = [
-            p.get("name", "") for p in client.get_policy_packages(snapshot.adom)
+            p.get("path", p.get("name", "")) for p in client.get_policy_packages(snapshot.adom)
             if isinstance(p, dict)
         ]
     except FMGError as exc:

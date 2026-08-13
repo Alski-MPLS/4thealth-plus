@@ -53,6 +53,29 @@ def test_fetch_device_snapshot_unknown_device_raises():
     assert exc_info.value.source == "fortimanager"
 
 
+def test_fetch_device_snapshot_uses_package_path_not_name():
+    """Packages inside an FMG folder must be addressed by their full path,
+    not just their name — get_policies()'s second arg must be pkg['path']."""
+    client = _client_stub(
+        get_policy_packages=[
+            {"name": "MyPackage", "path": "MyFolder/MyPackage", "scope member": []}
+        ],
+    )
+    fetch_device_snapshot(client, "OT-ADOM", "FW-A")
+    called_args = [c.args for c in client.get_policies.call_args_list]
+    assert ("OT-ADOM", "MyFolder/MyPackage") in called_args
+    assert ("OT-ADOM", "MyPackage") not in called_args
+
+
+def test_fetch_device_snapshot_falls_back_to_name_when_no_path():
+    """A package dict with no 'path' key still works (falls back to 'name')."""
+    client = _client_stub(
+        get_policy_packages=[{"name": "Pkg1", "scope member": []}],
+    )
+    snapshot = fetch_device_snapshot(client, "OT-ADOM", "FW-A")
+    assert snapshot.packages == ["Pkg1"]
+
+
 def test_fetch_device_snapshot_degrades_on_package_fetch_failure():
     client = _client_stub()
     client.get_policies.side_effect = RuntimeError("boom")

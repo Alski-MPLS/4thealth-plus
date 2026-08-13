@@ -313,16 +313,29 @@ route catches this and returns the deterministic plan with a
 setting in `app_settings.json` (same atomic-write pattern as
 `external_api_enabled`). Toggle it in **Admin → AI Assist**. `GET
 /api/rule-review/ai-assist-status` reports current availability to the frontend;
-the panel hides itself when disabled.
+when disabled, the panel stays visible but shows a disabled notice and disables
+the submit button (the form itself is not hidden).
+
+**Required setup files:** `app/planner/standards.py` reads `naming.yaml` and
+`review_requirements.yaml` from the project root (both gitignored, runtime
+data — same pattern as `policy_db.json`). Copy the tracked examples before
+using AI Assist: `cp naming.example.yaml naming.yaml` and `cp
+review_requirements.example.yaml review_requirements.yaml`, then edit them to
+match your team's actual naming/approval standards. A missing file surfaces as
+a `502` with an actionable message (`PlannerDataError`) rather than a raw
+`FileNotFoundError`.
 
 **Endpoint:** `POST /api/rule-review/ai-assist` — body: `{ src, dst, service,
 firewalls: [{device, adom}], ticket_id?, justification?, src_group?, dst_group? }`.
 Runs `plan_change()` against live FMG data, then narrates the result with the
 configured provider. Returns `{ plan, narrative, narrative_error, path_relevance
 }` — `plan` (the deterministic verdict) is always present; `narrative` is
-best-effort and `narrative_error` explains why it's null on failure. A
-misconfigured/unreachable FortiManager surfaces as `502`; the LLM call is never
-allowed to turn a good plan into a lost result.
+best-effort and `narrative_error` explains why it's null on failure. FMG API
+errors (`FMGError`, e.g. an authentication or JSON-RPC failure) surface as
+`502`; a raw network-level failure (e.g. connection refused) is not currently
+wrapped as `FMGError` and would surface as a `500` — a known, separate gap in
+`app/fmg_client.py`. The LLM call itself is never allowed to turn a good plan
+into a lost result.
 
 ### Zone Policy tab
 

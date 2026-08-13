@@ -63,7 +63,7 @@ def fetch_device_snapshot(
         raise PlannerDataError("fortimanager", f"cannot fetch object catalogs: {exc}") from exc
 
     device_pkgs = [
-        p.get("name", "") for p in packages
+        p.get("path", p.get("name", "")) for p in packages
         if isinstance(p, dict) and package_targets_device(p, device)
     ]
 

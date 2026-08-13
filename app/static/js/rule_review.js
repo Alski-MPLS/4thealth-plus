@@ -700,7 +700,7 @@ async function runAiAssist(evt) {
   try {
     const resp = await fetch('/api/rule-review/ai-assist', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const data = await resp.json();
@@ -721,8 +721,37 @@ async function runAiAssist(evt) {
 function renderAiResult(data) {
   aiAssistLastPayload = data;
   const plan = data.plan;
-  document.getElementById('rrAiVerdict').textContent = plan.cli_status;
+  document.getElementById('rrAiVerdict').textContent =
+    `${plan.cli_status}${plan.risk_level ? ' — Risk: ' + plan.risk_level : ''}`;
   document.getElementById('rrAiPlanSummary').textContent = plan.recommendation || '';
+
+  const warningsEl = document.getElementById('rrAiWarnings');
+  const warnings = plan.warnings || [];
+  if (warnings.length) {
+    warningsEl.innerHTML = '<strong>Warnings:</strong><ul>' +
+      warnings.map(w => `<li>${w}</li>`).join('') + '</ul>';
+    warningsEl.style.display = '';
+  } else {
+    warningsEl.innerHTML = '';
+    warningsEl.style.display = 'none';
+  }
+
+  const approvalEl = document.getElementById('rrAiApproval');
+  const approval = plan.approval || {};
+  if (approval && Object.keys(approval).length) {
+    const approvers = (approval.approvers || []).join(', ') || '(none listed)';
+    approvalEl.innerHTML = [
+      `<div><strong>Approvers:</strong> ${approvers}</div>`,
+      `<div><strong>Peer review required:</strong> ${approval.peer_review ? 'Yes' : 'No'}</div>`,
+      `<div><strong>Security review required:</strong> ${approval.security_review ? 'Yes' : 'No'}</div>`,
+      `<div><strong>Change window:</strong> ${approval.change_window || ''}</div>`,
+      `<div><strong>SLA:</strong> ${approval.sla_hours != null ? approval.sla_hours + ' hours' : ''}</div>`,
+    ].join('');
+    approvalEl.style.display = '';
+  } else {
+    approvalEl.innerHTML = '';
+    approvalEl.style.display = 'none';
+  }
 
   const pathEl = document.getElementById('rrAiPathRelevance');
   const pathEntries = Object.entries(data.path_relevance || {});
@@ -765,9 +794,27 @@ function downloadAiPackage() {
   const plan = aiAssistLastPayload.plan;
   const narrative = aiAssistLastPayload.narrative || '(AI summary unavailable)';
   const cli = document.getElementById('rrAiCliOutput').textContent;
+  const approval = plan.approval || {};
+  const approvalLines = [
+    `Approvers: ${(approval.approvers || []).join(', ') || '(none listed)'}`,
+    `Peer review required: ${approval.peer_review ? 'Yes' : 'No'}`,
+    `Security review required: ${approval.security_review ? 'Yes' : 'No'}`,
+    `Change window: ${approval.change_window || ''}`,
+    `SLA: ${approval.sla_hours != null ? approval.sla_hours + ' hours' : ''}`,
+  ];
+  const warnings = plan.warnings || [];
   const text = [
     `Peer Review Package — ${plan.ticket_id || '(no ticket)'}`,
     '='.repeat(60),
+    '',
+    `Verdict: ${plan.cli_status}`,
+    `Risk level: ${plan.risk_level || ''}`,
+    '',
+    'Warnings:',
+    warnings.length ? warnings.map(w => `- ${w}`).join('\n') : '(none)',
+    '',
+    'Approval:',
+    approvalLines.join('\n'),
     '',
     'AI-Generated Report:',
     narrative,

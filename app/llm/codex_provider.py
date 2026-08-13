@@ -21,7 +21,7 @@ class CodexProvider(LLMProvider):
             client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
             response = client.chat.completions.create(
                 model=self._model,
-                max_tokens=2048,
+                max_completion_tokens=2048,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
