@@ -8,6 +8,8 @@ users.json
 groups.json
 infra_targets.json
 policy_db.json
+naming.yaml
+review_requirements.yaml
 ansible/
 *.md
 *.html

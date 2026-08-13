@@ -13,6 +13,8 @@ services:
       - ./groups.json:/app/groups.json:rw
       - ./infra_targets.json:/app/infra_targets.json:ro
       - ./policy_db.json:/app/policy_db.json:rw
+      - ./naming.yaml:/app/naming.yaml:ro
+      - ./review_requirements.yaml:/app/review_requirements.yaml:ro
       - ./app_settings.json:/app/app_settings.json:rw
       - ./api_tokens.json:/app/api_tokens.json:rw
       - ./smtp_config.json:/app/smtp_config.json:rw
