@@ -9,6 +9,7 @@ API (all read-only against FortiManager; POST is for submitting work items):
   POST /api/rule-review/parse-import        — parse uploaded CSV or XLSX
   POST /api/rule-review/analyze             — run analysis
   GET  /api/rule-review/zone-status         — is zone policy DB available?
+  POST /api/rule-review/ai-assist           — single-request AI Assist (planner + LLM narration)
 """
 
 import csv
@@ -347,3 +348,115 @@ def rr_analyze():
     )
 
     return jsonify({"results": results, "zone_available": zone_script_available()})
+
+
+# ── AI Assist ─────────────────────────────────────────────────────────────────
+
+
+@bp.route("/api/rule-review/ai-assist", methods=["POST"])
+@tab_required("rule_review")
+def rr_ai_assist():
+    """AI Assist: run plan_change deterministically, then narrate the result
+    with the configured LLM. The deterministic result is always returned;
+    narration is best-effort and degrades gracefully on failure — the LLM
+    never computes or edits any value in the plan, it only explains it."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    data = request.get_json(silent=True) or {}
+    src = data.get("src", "")
+    dst = data.get("dst", "")
+    service = data.get("service", "")
+    firewalls_raw = data.get("firewalls", [])
+    ticket_id = data.get("ticket_id", "")
+    justification = data.get("justification", "")
+    src_group = data.get("src_group", "")
+    dst_group = data.get("dst_group", "")
+
+    if not src or not dst or not service or not firewalls_raw:
+        return jsonify({"error": "src, dst, service, and firewalls are required"}), 400
+
+    for fw in firewalls_raw:
+        adom = fw.get("adom", "")
+        if err := check_adom_access(adom):
+            return err
+
+    from app.planner.engine import plan_change
+    from app.planner.models import PlannerDataError, TargetFirewall
+
+    targets = [TargetFirewall(device=fw["device"], adom=fw["adom"]) for fw in firewalls_raw]
+
+    path_relevance: dict = {}
+    try:
+        with make_client() as fmg:
+            plan = plan_change(
+                src=src, dst=dst, service=service, firewalls=targets,
+                justification=justification, ticket_id=ticket_id,
+                src_group=src_group, dst_group=dst_group,
+                fmg_client=fmg,
+            )
+
+            # Path-relevance ("is this firewall actually in the traffic path")
+            # has no equivalent in the ported planner — it's 4THealth+-specific
+            # and wraps the planner's output, same as it already wraps the
+            # existing bulk-analysis engine. Scoped to the single-src/single-dst
+            # case (the common one); multi-value requests skip this check
+            # rather than guessing which pair to report on.
+            #
+            # This entire block is best-effort and MUST NEVER raise: the plan
+            # computed above has already succeeded, and losing it because an
+            # advisory annotation failed would violate the core guarantee that
+            # the deterministic result always renders. Every failure mode here
+            # — a bad FMG call, a malformed interface/route shape,  anything
+            # unanticipated — degrades to a per-device note, never a 500.
+            srcs_list = [s.strip() for s in src.split(",") if s.strip()]
+            dsts_list = [d.strip() for d in dst.split(",") if d.strip()]
+            if len(srcs_list) == 1 and len(dsts_list) == 1:
+                from app.rule_review import check_path_relevance
+                for target in targets:
+                    try:
+                        interfaces = fmg.get_device_interfaces_all_vdoms(target.adom, target.device)
+                        routes = fmg.get_device_routes_all_vdoms(target.adom, target.device)
+                        path_relevance[target.device] = check_path_relevance(
+                            srcs_list[0], dsts_list[0], interfaces, routes,
+                        )
+                    except Exception:
+                        path_relevance[target.device] = {"in_path": None, "confidence": "low",
+                                                          "notes": ["Could not determine path relevance"]}
+    except PlannerDataError as exc:
+        return jsonify({"error": str(exc), "source": exc.source}), 502
+    except FMGError as exc:
+        return upstream_api_error("rule_review", exc)
+    except Exception as exc:
+        return internal_api_error("rule_review", exc)
+
+    plan_dict = plan.to_dict()
+
+    narrative = None
+    narrative_error = None
+    try:
+        import json as _json
+        from app.llm import get_provider
+        provider = get_provider()
+        narrative = provider.narrate(
+            system_prompt=(
+                "You are a firewall change analyst assistant. You are given a "
+                "structured, already-computed change plan as JSON. Write a clear, "
+                "concise report for a peer reviewer: summarize the verdict, the "
+                "required change per firewall, risk level, and approval "
+                "requirements. Never invent or change any value in the plan — "
+                "only explain it in prose."
+            ),
+            user_prompt=_json.dumps(plan_dict, default=str),
+        )
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify({
+        "plan": plan_dict,
+        "narrative": narrative,
+        "narrative_error": narrative_error,
+        "path_relevance": path_relevance,
+    })
