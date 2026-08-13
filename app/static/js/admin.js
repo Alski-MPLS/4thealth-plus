@@ -437,6 +437,13 @@
     `;
   }
 
+  function aiUsageAxisLabel(iso, showDate) {
+    const d = new Date(iso);
+    return showDate
+      ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
   function renderAiUsageChart(el, data) {
     const buckets = data.buckets || [];
     if (!buckets.length || !buckets.some(b => b.count > 0)) {
@@ -444,7 +451,7 @@
       return;
     }
     const maxCost = Math.max(...buckets.map(b => b.cost_usd), 0.0001);
-    el.innerHTML = buckets.map(b => {
+    const bars = buckets.map(b => {
       const pct = Math.max(2, Math.round((b.cost_usd / maxCost) * 100));
       const label = new Date(b.start).toLocaleString(undefined,
         { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -453,6 +460,23 @@
         <div class="ai-usage-bar" style="height:${b.count ? pct : 0}%"></div>
       </div>`;
     }).join('');
+
+    // Sub-1.5-day spans show a clock time per tick; longer spans show a date
+    // — based on the actual data span, so this works for the custom date
+    // picker too, not just the named range buttons.
+    const spanHours = (new Date(data.end) - new Date(data.start)) / 3600000;
+    const showDate = spanHours > 36;
+
+    // 5 evenly-spaced tick labels (first, quarter points, last) so the axis
+    // stays readable regardless of how many buckets there are.
+    const tickIdxs = [...new Set([0, 0.25, 0.5, 0.75, 1].map(f =>
+      Math.min(buckets.length - 1, Math.round(f * (buckets.length - 1)))
+    ))];
+    const axis = buckets.map((b, i) =>
+      `<div class="ai-usage-tick">${tickIdxs.includes(i) ? esc(aiUsageAxisLabel(b.start, showDate)) : ''}</div>`
+    ).join('');
+
+    el.innerHTML = `<div class="ai-usage-bars">${bars}</div><div class="ai-usage-axis">${axis}</div>`;
   }
 
   document.querySelectorAll('.ai-usage-range-btn').forEach(btn => {
