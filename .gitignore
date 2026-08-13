@@ -17,6 +17,8 @@ config_diff_jobs.json
 device_review_jobs.json
 backup_config.json
 protocol_severity.json
+naming.yaml
+review_requirements.yaml
 api_tokens.json
 app_settings.json
 
