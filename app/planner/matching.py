@@ -97,17 +97,19 @@ def _parse_port_expr(expr: str, protocol: str) -> PortRange:
 
 
 # Free-form multi-protocol service text: "tcp and udp for 53", "tcp, udp on
-# 8080-8090", "53 for tcp and udp". Deliberately narrow — a fixed grammar,
-# not open-ended NLP — so unrecognised phrasing still fails loudly via the
-# same "Cannot interpret" error, never a silent misparse.
+# 8080-8090", "tcp and udp port 53", "ports 53 for tcp and udp". Deliberately
+# narrow — a fixed grammar, not open-ended NLP — so unrecognised phrasing
+# still fails loudly via the same "Cannot interpret" error, never a silent
+# misparse.
 _PROTO_WORD = r"(?:tcp|udp|sctp)"
 _PROTO_LIST = rf"{_PROTO_WORD}(?:\s*(?:,|and)\s*{_PROTO_WORD})*"
 _PORT_EXPR = r"\d+(?:-\d+)?"
+_CONNECTOR = r"(?:for|on|ports?)"
 _PROTOS_THEN_PORT = re.compile(
-    rf"^(?P<protos>{_PROTO_LIST})\s+(?:(?:for|on)\s+)?(?P<port>{_PORT_EXPR})$"
+    rf"^(?P<protos>{_PROTO_LIST})\s+(?:{_CONNECTOR}\s+)?(?P<port>{_PORT_EXPR})$"
 )
 _PORT_THEN_PROTOS = re.compile(
-    rf"^(?P<port>{_PORT_EXPR})\s+(?:(?:for|on)\s+)?(?P<protos>{_PROTO_LIST})$"
+    rf"^(?:{_CONNECTOR}\s+)?(?P<port>{_PORT_EXPR})\s+(?:{_CONNECTOR}\s+)?(?P<protos>{_PROTO_LIST})$"
 )
 
 

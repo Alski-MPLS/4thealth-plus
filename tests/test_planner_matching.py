@@ -529,6 +529,16 @@ def test_parse_service_request_protocols_then_port_with_and():
     assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
 
 
+def test_parse_service_request_protocols_then_port_with_word_port():
+    result = parse_service_request("tcp and udp port 53")
+    assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
+
+
+def test_parse_service_request_port_then_protocols_with_word_ports():
+    result = parse_service_request("ports 53 for tcp and udp")
+    assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
+
+
 def test_parse_service_request_protocols_then_port_with_comma():
     result = parse_service_request("tcp, udp on 8080-8090")
     assert set(result) == {PortRange("tcp", 8080, 8090), PortRange("udp", 8080, 8090)}
