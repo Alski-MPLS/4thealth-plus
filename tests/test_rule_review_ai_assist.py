@@ -141,3 +141,49 @@ def test_ai_assist_planner_data_error_returns_502(client):
         })
     assert resp.status_code == 502
     assert "mixed verdicts" in resp.get_json()["error"]
+
+
+def test_devices_lists_devices_across_accessible_adoms(client):
+    fmg = MagicMock()
+    fmg.get_adoms.return_value = [
+        {"name": "OT-ADOM"}, {"name": "IT-ADOM"}, {"name": "FortiManager_Managed_Devices"},
+    ]
+    fmg.get_devices.side_effect = lambda adom: (
+        [{"name": "FW-OT-1"}, {"name": "FW-OT-2"}] if adom == "OT-ADOM"
+        else [{"name": "FW-IT-1"}]
+    )
+    with patch("app.groups.get_allowed_adoms", return_value=None), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        mock_make_client.return_value.__enter__.return_value = fmg
+        resp = client.get("/api/rule-review/devices")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert {"device": "FW-OT-1", "adom": "OT-ADOM"} in data
+    assert {"device": "FW-OT-2", "adom": "OT-ADOM"} in data
+    assert {"device": "FW-IT-1", "adom": "IT-ADOM"} in data
+    # "forti"-prefixed system ADOMs are filtered out, same as rr_adoms()
+    assert not any(d["adom"] == "FortiManager_Managed_Devices" for d in data)
+
+
+def test_devices_filters_to_allowed_adoms(client):
+    fmg = MagicMock()
+    fmg.get_adoms.return_value = [{"name": "OT-ADOM"}, {"name": "IT-ADOM"}]
+    fmg.get_devices.side_effect = lambda adom: [{"name": f"FW-{adom}"}]
+    with patch("app.groups.get_allowed_adoms", return_value=["OT-ADOM"]), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        mock_make_client.return_value.__enter__.return_value = fmg
+        resp = client.get("/api/rule-review/devices")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data == [{"device": "FW-OT-ADOM", "adom": "OT-ADOM"}]
+
+
+def test_devices_upstream_fmg_error_returns_502(client):
+    from app.fmg_client import FMGError
+    with patch("app.groups.get_allowed_adoms", return_value=None), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        mock_make_client.return_value.__enter__.side_effect = FMGError("connection refused")
+        resp = client.get("/api/rule-review/devices")
+    assert resp.status_code == 502

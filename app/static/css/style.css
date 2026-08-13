@@ -2558,3 +2558,111 @@ a:hover { text-decoration: underline; }
 }
 .badge-green { background: #d1fae5; color: #065f46; }
 .badge-red   { background: #fee2e2; color: #991b1b; }
+
+/* ── AI Assist (Rule Validation) ─────────────────────────────────────────── */
+.badge-beta {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(253,126,20,.15);
+  color: var(--warning);
+  vertical-align: middle;
+  margin-left: .4rem;
+}
+
+.rr-hint {
+  color: var(--text-muted);
+  font-size: .85rem;
+  margin-bottom: .85rem;
+}
+
+.rr-notice {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .6rem .85rem;
+  font-size: .85rem;
+  color: var(--text-muted);
+  margin-bottom: .85rem;
+}
+
+.rr-form-row {
+  margin-bottom: .85rem;
+  position: relative;
+}
+.rr-form-row label {
+  display: block;
+  font-size: .8rem;
+  font-weight: 600;
+  margin-bottom: .3rem;
+}
+.rr-form-row input[type="text"],
+.rr-form-row textarea {
+  width: 100%;
+  max-width: 480px;
+  padding: .45rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+.rr-form-row textarea { min-height: 3.5rem; resize: vertical; }
+
+.rr-field-hint {
+  display: block;
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-top: .25rem;
+}
+
+.rr-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  margin: 2px 0 0;
+  padding: .25rem 0;
+  list-style: none;
+  max-width: 480px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.rr-suggestions li {
+  padding: .4rem .7rem;
+  cursor: pointer;
+  font-size: .85rem;
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.rr-suggestions li:hover { background: var(--surface-alt); }
+.rr-suggestion-adom {
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+
+.rr-running {
+  color: var(--text-muted);
+  font-size: .85rem;
+  margin: .5rem 0;
+}
+
+.rr-narrative {
+  white-space: pre-wrap;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .85rem 1rem;
+  font-size: .9rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}

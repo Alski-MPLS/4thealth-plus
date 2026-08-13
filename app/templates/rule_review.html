@@ -136,10 +136,11 @@
       <label for="rrAiSvc">Service(s)</label>
       <input type="text" id="rrAiSvc" placeholder="tcp/8443, tcp/22">
     </div>
-    <div class="rr-form-row">
+    <div class="rr-form-row" style="position:relative">
       <label for="rrAiFirewalls">Target firewall(s)</label>
-      <input type="text" id="rrAiFirewalls" placeholder="FW01:OT-ADOM, FW02:OT-ADOM">
-      <span class="rr-field-hint">Format: DEVICE:ADOM, comma-separated for multiple</span>
+      <input type="text" id="rrAiFirewalls" placeholder="FW01:OT-ADOM, FW02:OT-ADOM" autocomplete="off">
+      <span class="rr-field-hint">Format: DEVICE:ADOM, comma-separated for multiple — start typing a device name to search</span>
+      <ul id="rrAiFirewallSuggestions" class="rr-suggestions" style="display:none"></ul>
     </div>
     <div class="rr-form-row">
       <label for="rrAiTicket">Ticket ID</label>

@@ -664,6 +664,80 @@ function parseAiFirewalls(raw) {
   });
 }
 
+// ── Firewall device typeahead ────────────────────────────────────────────
+
+let aiDeviceCache = null;   // [{device, adom}, ...] — fetched once, filtered client-side
+let aiDeviceCachePromise = null;
+
+function loadAiDeviceCache() {
+  if (aiDeviceCachePromise) return aiDeviceCachePromise;
+  aiDeviceCachePromise = fetch('/api/rule-review/devices')
+    .then(resp => resp.ok ? resp.json() : [])
+    .then(data => { aiDeviceCache = Array.isArray(data) ? data : []; return aiDeviceCache; })
+    .catch(() => { aiDeviceCache = []; return aiDeviceCache; });
+  return aiDeviceCachePromise;
+}
+
+function activeFirewallToken(input) {
+  // The part being typed right now is whatever follows the last comma.
+  const value = input.value;
+  const lastComma = value.lastIndexOf(',');
+  const start = lastComma === -1 ? 0 : lastComma + 1;
+  return { start, end: value.length, text: value.slice(start).trim() };
+}
+
+function renderFirewallSuggestions(matches) {
+  const list = document.getElementById('rrAiFirewallSuggestions');
+  if (!matches.length) {
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = matches.slice(0, 8).map((m, i) =>
+    `<li data-idx="${i}">${esc(m.device)} <span class="rr-suggestion-adom">${esc(m.adom)}</span></li>`
+  ).join('');
+  list.style.display = '';
+}
+
+function applyFirewallSuggestion(input, match) {
+  const token = activeFirewallToken(input);
+  const before = input.value.slice(0, token.start).replace(/,\s*$/, '');
+  const prefix = before ? before + ', ' : '';
+  input.value = `${prefix}${match.device}:${match.adom}, `;
+  renderFirewallSuggestions([]);
+  input.focus();
+}
+
+async function onFirewallInput(evt) {
+  const input = evt.target;
+  const token = activeFirewallToken(input);
+  if (!token.text || token.text.includes(':')) {
+    renderFirewallSuggestions([]);
+    return;
+  }
+  const devices = await loadAiDeviceCache();
+  const q = token.text.toLowerCase();
+  const matches = devices.filter(d =>
+    d.device.toLowerCase().includes(q) || d.adom.toLowerCase().includes(q)
+  );
+  // Only render if the user hasn't kept typing past this point already.
+  if (activeFirewallToken(input).text.toLowerCase() !== q) return;
+  renderFirewallSuggestions(matches);
+  document.getElementById('rrAiFirewallSuggestions').querySelectorAll('li').forEach(li => {
+    li.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // keep focus on the input through the click
+      applyFirewallSuggestion(input, matches[Number(li.dataset.idx)]);
+    });
+  });
+}
+
+document.getElementById('rrAiFirewalls')?.addEventListener('input', onFirewallInput);
+document.getElementById('rrAiFirewalls')?.addEventListener('focus', loadAiDeviceCache);
+document.getElementById('rrAiFirewalls')?.addEventListener('blur', () => {
+  // Delay so a suggestion's mousedown can fire before the list disappears.
+  setTimeout(() => renderFirewallSuggestions([]), 150);
+});
+
 async function checkAiAssistAvailable() {
   try {
     const resp = await fetch('/api/rule-review/ai-assist-status');

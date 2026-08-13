@@ -11,6 +11,7 @@ API (all read-only against FortiManager; POST is for submitting work items):
   GET  /api/rule-review/zone-status         — is zone policy DB available?
   GET  /api/rule-review/ai-assist-status    — is AI Assist enabled?
   POST /api/rule-review/ai-assist           — single-request AI Assist (planner + LLM narration)
+  GET  /api/rule-review/devices             — device:ADOM pairs across accessible ADOMs (AI Assist typeahead)
 """
 
 import csv
@@ -63,6 +64,50 @@ def rr_adoms():
         if allowed is not None:
             names = [n for n in names if n in allowed]
         return jsonify(names)
+    except FMGError as exc:
+        return upstream_api_error("rule_review", exc)
+    except Exception as exc:
+        return internal_api_error("rule_review", exc)
+
+
+# ── API: device list across accessible ADOMs (AI Assist typeahead) ────────────
+
+
+@bp.route("/api/rule-review/devices")
+@tab_required("rule_review")
+def rr_devices():
+    """List every device the current user can target, paired with its ADOM.
+
+    Backs the AI Assist "Target firewall(s)" typeahead — the field expects
+    DEVICE:ADOM, and this endpoint saves the engineer a trip to the
+    Firewalls tab to look up which ADOM a device lives in.
+    """
+    try:
+        from flask import session as _session
+        from app.groups import get_allowed_adoms
+
+        allowed = get_allowed_adoms(
+            _session.get("user", ""), ad_groups=_session.get("ad_groups", [])
+        )
+        with make_client() as client:
+            raw_adoms = client.get_adoms()
+            adom_names = sorted(
+                a["name"]
+                for a in raw_adoms
+                if isinstance(a, dict)
+                and a.get("name")
+                and not a["name"].lower().startswith("forti")
+            )
+            if allowed is not None:
+                adom_names = [n for n in adom_names if n in allowed]
+
+            results = []
+            for adom in adom_names:
+                for d in client.get_devices(adom):
+                    if isinstance(d, dict) and d.get("name"):
+                        results.append({"device": d["name"], "adom": adom})
+        results.sort(key=lambda r: (r["device"], r["adom"]))
+        return jsonify(results)
     except FMGError as exc:
         return upstream_api_error("rule_review", exc)
     except Exception as exc:
