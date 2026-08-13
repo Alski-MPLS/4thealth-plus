@@ -388,8 +388,12 @@ def rr_ai_assist():
         return jsonify({"error": "src, dst, service, and firewalls are required"}), 400
 
     for fw in firewalls_raw:
-        adom = fw.get("adom", "")
-        if err := check_adom_access(adom):
+        if not fw.get("device") or not fw.get("adom"):
+            return jsonify({
+                "error": "Each target firewall must include both a device and an ADOM "
+                         "(format: DEVICE:ADOM) — got an entry missing one or the other."
+            }), 400
+        if err := check_adom_access(fw["adom"]):
             return err
 
     from app.planner.engine import plan_change

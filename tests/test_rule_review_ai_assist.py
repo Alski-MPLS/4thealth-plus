@@ -56,6 +56,16 @@ def test_ai_assist_missing_fields_returns_400(client):
     assert resp.status_code == 400
 
 
+def test_ai_assist_firewall_missing_adom_returns_400_not_500(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post(client, "/api/rule-review/ai-assist", {
+            "src": "10.0.0.5", "dst": "10.0.0.6", "service": "tcp/443",
+            "firewalls": [{"device": "FortiWiFi-71G"}],
+        })
+    assert resp.status_code == 400
+    assert "device" in resp.get_json()["error"] or "ADOM" in resp.get_json()["error"]
+
+
 def test_ai_assist_success_returns_plan_and_narrative(client):
     fake_plan = MagicMock()
     fake_plan.to_dict.return_value = {"ticket_id": "CHG1", "cli_status": "new_rule"}
