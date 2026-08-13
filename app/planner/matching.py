@@ -15,6 +15,7 @@ Resolution rules:
 from __future__ import annotations
 
 import ipaddress
+import re
 from dataclasses import dataclass
 
 _WILDCARD_PROTOCOLS = ("ip",)
@@ -95,12 +96,50 @@ def _parse_port_expr(expr: str, protocol: str) -> PortRange:
     return PortRange(protocol, port, port)
 
 
+# Free-form multi-protocol service text: "tcp and udp for 53", "tcp, udp on
+# 8080-8090", "53 for tcp and udp". Deliberately narrow — a fixed grammar,
+# not open-ended NLP — so unrecognised phrasing still fails loudly via the
+# same "Cannot interpret" error, never a silent misparse.
+_PROTO_WORD = r"(?:tcp|udp|sctp)"
+_PROTO_LIST = rf"{_PROTO_WORD}(?:\s*(?:,|and)\s*{_PROTO_WORD})*"
+_PORT_EXPR = r"\d+(?:-\d+)?"
+_PROTOS_THEN_PORT = re.compile(
+    rf"^(?P<protos>{_PROTO_LIST})\s+(?:(?:for|on)\s+)?(?P<port>{_PORT_EXPR})$"
+)
+_PORT_THEN_PROTOS = re.compile(
+    rf"^(?P<port>{_PORT_EXPR})\s+(?:(?:for|on)\s+)?(?P<protos>{_PROTO_LIST})$"
+)
+
+
+def _split_protocols(text: str) -> list[str]:
+    seen: list[str] = []
+    for part in re.split(r"\s*(?:,|and)\s*", text.strip()):
+        part = part.strip().lower()
+        if part and part not in seen:
+            seen.append(part)
+    return seen
+
+
+def _parse_multi_protocol_service(raw: str) -> list[PortRange] | None:
+    """Match "<protocols> [for|on] <port>" or "<port> [for|on] <protocols>".
+
+    Returns None (not a ValueError) when the text doesn't match either
+    shape at all, so the caller can fall through to its other formats.
+    """
+    m = _PROTOS_THEN_PORT.match(raw) or _PORT_THEN_PROTOS.match(raw)
+    if not m:
+        return None
+    protos = _split_protocols(m.group("protos"))
+    return [_parse_port_expr(m.group("port"), proto) for proto in protos]
+
+
 def parse_service_request(service: str, protocol_hint: str = "") -> list[PortRange]:
     """
     Parse an engineer-entered service string into port ranges.
 
     Accepts: "443", "tcp/8443", "udp/514", "tcp/8000-8100", well-known names
-    ("ssh", "dns", ...), and "any"/"all"/"" (wildcard).
+    ("ssh", "dns", ...), "any"/"all"/"" (wildcard), and free-form
+    multi-protocol text ("tcp and udp for 53", "53 for tcp, udp").
 
     Raises ValueError for anything unrecognisable — callers must surface
     that to the engineer rather than guessing.
@@ -120,6 +159,10 @@ def parse_service_request(service: str, protocol_hint: str = "") -> list[PortRan
 
     if raw in _WELL_KNOWN:
         return list(_WELL_KNOWN[raw])
+
+    multi = _parse_multi_protocol_service(raw)
+    if multi is not None:
+        return multi
 
     try:
         proto = protocol_hint.strip().lower() or "tcp"

@@ -517,3 +517,42 @@ def test_uncovered_services_empty_for_broad_range():
     pol = {"service": ["BIG"]}
     requested = parse_service_request("tcp/33001") + parse_service_request("udp/33001")
     assert m.uncovered_services(pol, requested) == []
+
+
+# ---------------------------------------------------------------------------
+# Free-form multi-protocol service text (4THealth+ extension — not part of
+# the ported 4tAnalyst test suite above)
+# ---------------------------------------------------------------------------
+
+def test_parse_service_request_protocols_then_port_with_and():
+    result = parse_service_request("tcp and udp for 53")
+    assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
+
+
+def test_parse_service_request_protocols_then_port_with_comma():
+    result = parse_service_request("tcp, udp on 8080-8090")
+    assert set(result) == {PortRange("tcp", 8080, 8090), PortRange("udp", 8080, 8090)}
+
+
+def test_parse_service_request_port_then_protocols():
+    result = parse_service_request("53 for tcp and udp")
+    assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
+
+
+def test_parse_service_request_three_protocols():
+    result = parse_service_request("tcp, udp and sctp for 9999")
+    assert set(result) == {
+        PortRange("tcp", 9999, 9999),
+        PortRange("udp", 9999, 9999),
+        PortRange("sctp", 9999, 9999),
+    }
+
+
+def test_parse_service_request_case_insensitive_multi_proto():
+    result = parse_service_request("TCP and UDP for 53")
+    assert set(result) == {PortRange("tcp", 53, 53), PortRange("udp", 53, 53)}
+
+
+def test_parse_service_request_multi_proto_still_rejects_garbage():
+    with pytest.raises(ValueError, match="Cannot interpret"):
+        parse_service_request("tcp and banana for 53")
