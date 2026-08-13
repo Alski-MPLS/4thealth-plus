@@ -1,8 +1,8 @@
 services:
   app:
     build: .
-    image: 4thealth:latest
-    container_name: 4thealth
+    image: 4thealth-plus:latest
+    container_name: 4thealth-plus
     restart: unless-stopped
     ports:
       - "8100:8100"
