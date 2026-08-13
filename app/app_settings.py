@@ -11,6 +11,7 @@ from app.atomic_io import atomic_write_json
 _SETTINGS_PATH = Path(__file__).parent.parent / "app_settings.json"
 _DEFAULTS: dict = {
     "external_api_enabled": False,
+    "ai_assist_enabled": False,
 }
 _lock = threading.Lock()
 

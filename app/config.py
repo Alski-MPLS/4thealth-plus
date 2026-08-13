@@ -90,3 +90,13 @@ class Config:
     SNMP_AUTH_KEY = os.environ.get("SNMP_AUTH_KEY", "")
     SNMP_PRIV_PROTOCOL = os.environ.get("SNMP_PRIV_PROTOCOL", "AES")
     SNMP_PRIV_KEY = os.environ.get("SNMP_PRIV_KEY", "")
+
+    # AI Assist (Rule Validation) — LLM provider selection and credentials
+    AI_PROVIDER = os.environ.get("AI_PROVIDER", "claude")
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
+    OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "")
+    OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
+    OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
