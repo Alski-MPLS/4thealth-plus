@@ -30,6 +30,7 @@ Tab registry:
 App settings (JSON):
   GET    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
   PUT    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
+  GET    /admin/api/ai-usage         bucketed AI Assist call/cost history (?range= or ?start=&end=)
 
 External API tokens (JSON):
   GET    /admin/api/tokens           list tokens (hashes never returned)
@@ -283,6 +284,47 @@ def api_settings_put():
             "INFO", "admin", "AI Assist toggled", by=session["user"], enabled=enabled
         )
     return jsonify(get_all_settings())
+
+
+# ── AI Assist usage/cost ────────────────────────────────────────────────────
+
+_AI_USAGE_RANGE_HOURS = {"1h": 1, "4h": 4, "12h": 12, "1d": 24, "7d": 24 * 7}
+
+
+@bp.route("/api/ai-usage")
+@_admin_required
+def api_ai_usage():
+    """Bucketed AI Assist call/cost history. ?range=1h|4h|12h|1d|7d
+    (default 1d), or ?start=<iso>&end=<iso> for a custom window."""
+    import datetime as dt
+
+    from app.ai_usage import usage_summary
+
+    start_param = request.args.get("start", "")
+    end_param = request.args.get("end", "")
+
+    if start_param and end_param:
+        try:
+            start = dt.datetime.fromisoformat(start_param)
+            end = dt.datetime.fromisoformat(end_param)
+        except ValueError:
+            return jsonify({"error": "start/end must be ISO 8601 datetimes"}), 400
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=dt.timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=dt.timezone.utc)
+    else:
+        hours = _AI_USAGE_RANGE_HOURS.get(request.args.get("range", "1d"), 24)
+        end = dt.datetime.now(dt.timezone.utc)
+        start = end - dt.timedelta(hours=hours)
+
+    if end <= start:
+        return jsonify({"error": "end must be after start"}), 400
+
+    summary = usage_summary(start, end)
+    summary["start"] = start.isoformat()
+    summary["end"] = end.isoformat()
+    return jsonify(summary)
 
 
 # ── External API tokens ───────────────────────────────────────────────────────
