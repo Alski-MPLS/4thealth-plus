@@ -162,6 +162,32 @@
     <button class="btn btn-primary btn-sm" id="btnSaveAiAssistToggle">Save</button>
     <span id="aiAssistToggleMsg" style="font-size:.83rem"></span>
   </div>
+
+  <div class="admin-panel-header">
+    <div>
+      <h3>Usage &amp; Cost</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        Rough cost estimate from actual token counts &times; a per-model $/token
+        table (see <code>app/llm/pricing.py</code>) &mdash; not a billing-grade figure.
+      </p>
+    </div>
+  </div>
+
+  <div class="ai-usage-range-row">
+    <button type="button" class="btn btn-sm ai-usage-range-btn active" data-range="1h">1 hour</button>
+    <button type="button" class="btn btn-sm ai-usage-range-btn" data-range="4h">4 hours</button>
+    <button type="button" class="btn btn-sm ai-usage-range-btn" data-range="12h">12 hours</button>
+    <button type="button" class="btn btn-sm ai-usage-range-btn" data-range="1d">1 day</button>
+    <button type="button" class="btn btn-sm ai-usage-range-btn" data-range="7d">7 days</button>
+    <span class="ai-usage-range-sep"></span>
+    <input type="date" id="aiUsageStart" class="ai-usage-date">
+    <span>to</span>
+    <input type="date" id="aiUsageEnd" class="ai-usage-date">
+    <button type="button" class="btn btn-sm" id="btnAiUsageCustomRange">Go</button>
+  </div>
+
+  <div id="aiUsageSummary" class="ai-usage-summary"></div>
+  <div id="aiUsageChart" class="ai-usage-chart"></div>
 </div>
 
 <!-- ══════════════════════  CONFIG-DIFF PANEL  ══════════════════════ -->

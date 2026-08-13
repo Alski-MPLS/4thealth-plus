@@ -393,7 +393,72 @@
     const settings = await settingsRes.json();
     document.getElementById('aiAssistEnabled').checked = !!settings.ai_assist_enabled;
     _aiAssistLoaded = true;
+    loadAiUsage('1h');
   }
+
+  // ── Usage & cost chart ─────────────────────────────────────────────────
+
+  async function loadAiUsage(range) {
+    const chartEl = document.getElementById('aiUsageChart');
+    const summaryEl = document.getElementById('aiUsageSummary');
+    chartEl.innerHTML = '<div class="loading-placeholder">Loading…</div>';
+    let url;
+    if (range) {
+      document.querySelectorAll('.ai-usage-range-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.range === range));
+      url = '/admin/api/ai-usage?range=' + encodeURIComponent(range);
+    } else {
+      document.querySelectorAll('.ai-usage-range-btn').forEach(b => b.classList.remove('active'));
+      const start = document.getElementById('aiUsageStart').value;
+      const end = document.getElementById('aiUsageEnd').value;
+      if (!start || !end) { chartEl.innerHTML = '<div class="text-muted">Pick both dates.</div>'; return; }
+      url = '/admin/api/ai-usage?start=' + encodeURIComponent(start + 'T00:00:00+00:00')
+          + '&end=' + encodeURIComponent(end + 'T23:59:59+00:00');
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      chartEl.innerHTML = '<div class="text-muted">' + esc(err.error || 'Failed to load usage data.') + '</div>';
+      summaryEl.innerHTML = '';
+      return;
+    }
+    const data = await res.json();
+    renderAiUsageSummary(summaryEl, data);
+    renderAiUsageChart(chartEl, data);
+  }
+
+  function renderAiUsageSummary(el, data) {
+    el.innerHTML = `
+      <div class="ai-usage-stat"><strong>${data.total_calls}</strong><span>calls</span></div>
+      <div class="ai-usage-stat"><strong>$${data.total_cost_usd.toFixed(4)}</strong><span>est. cost</span></div>
+      <div class="ai-usage-stat"><strong>${data.total_failures}</strong><span>failures</span></div>
+      <div class="ai-usage-stat"><strong>${(data.total_input_tokens + data.total_output_tokens).toLocaleString()}</strong><span>tokens</span></div>
+    `;
+  }
+
+  function renderAiUsageChart(el, data) {
+    const buckets = data.buckets || [];
+    if (!buckets.length || !buckets.some(b => b.count > 0)) {
+      el.innerHTML = '<div class="text-muted" style="padding:1rem 0">No AI Assist activity in this range.</div>';
+      return;
+    }
+    const maxCost = Math.max(...buckets.map(b => b.cost_usd), 0.0001);
+    el.innerHTML = buckets.map(b => {
+      const pct = Math.max(2, Math.round((b.cost_usd / maxCost) * 100));
+      const label = new Date(b.start).toLocaleString(undefined,
+        { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const title = `${label}\n${b.count} call${b.count !== 1 ? 's' : ''} — $${b.cost_usd.toFixed(4)}`;
+      return `<div class="ai-usage-bar-wrap" title="${esc(title)}">
+        <div class="ai-usage-bar" style="height:${b.count ? pct : 0}%"></div>
+      </div>`;
+    }).join('');
+  }
+
+  document.querySelectorAll('.ai-usage-range-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadAiUsage(btn.dataset.range));
+  });
+  document.getElementById('btnAiUsageCustomRange')?.addEventListener('click', () => loadAiUsage(null));
 
   document.getElementById('btnSaveAiAssistToggle').addEventListener('click', async () => {
     const enabled = document.getElementById('aiAssistEnabled').checked;

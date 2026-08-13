@@ -2666,3 +2666,75 @@ a:hover { text-decoration: underline; }
   line-height: 1.5;
   margin-bottom: 1rem;
 }
+
+/* ── AI Assist usage/cost chart (Admin) ──────────────────────────────────── */
+.ai-usage-range-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.ai-usage-range-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.ai-usage-range-sep {
+  width: 1px;
+  height: 1.4rem;
+  background: var(--border);
+  margin: 0 .25rem;
+}
+.ai-usage-date {
+  padding: .3rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.ai-usage-summary {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.ai-usage-stat {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+}
+.ai-usage-stat strong { font-size: 1.3rem; }
+.ai-usage-stat span {
+  font-size: .75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.ai-usage-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 140px;
+  padding: .5rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.ai-usage-bar-wrap {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  min-width: 4px;
+}
+.ai-usage-bar {
+  width: 100%;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height .15s ease;
+}
