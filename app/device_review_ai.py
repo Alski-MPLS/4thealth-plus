@@ -20,13 +20,15 @@ def _fail_rows(results: list[dict]) -> list[dict]:
     for dev in results:
         for row in dev.get("rows", []):
             if row.get("result") in ("FAIL", "INSECURE"):
-                out.append({
-                    "device": row.get("device", ""),
-                    "check": row.get("check", ""),
-                    "result": row.get("result", ""),
-                    "interface": row.get("interface", ""),
-                    "detail": row.get("detail", ""),
-                })
+                out.append(
+                    {
+                        "device": row.get("device", ""),
+                        "check": row.get("check", ""),
+                        "result": row.get("result", ""),
+                        "interface": row.get("interface", ""),
+                        "detail": row.get("detail", ""),
+                    }
+                )
                 if len(out) >= _MAX_ROWS_SENT:
                     return out
     return out

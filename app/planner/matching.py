@@ -53,7 +53,10 @@ class PortRange:
     def overlaps(self, other: "PortRange") -> bool:
         if not self._proto_compatible(other):
             return False
-        if self.protocol in _WILDCARD_PROTOCOLS or other.protocol in _WILDCARD_PROTOCOLS:
+        if (
+            self.protocol in _WILDCARD_PROTOCOLS
+            or other.protocol in _WILDCARD_PROTOCOLS
+        ):
             return True
         return self.start <= other.end and other.start <= self.end
 
@@ -251,8 +254,11 @@ class ServiceCatalog:
             return [WILDCARD_RANGE]
 
         ranges: list[PortRange] = []
-        for proto, key in (("tcp", "tcp-portrange"), ("udp", "udp-portrange"),
-                           ("sctp", "sctp-portrange")):
+        for proto, key in (
+            ("tcp", "tcp-portrange"),
+            ("udp", "udp-portrange"),
+            ("sctp", "sctp-portrange"),
+        ):
             raw = obj.get(key, "")
             if isinstance(raw, list):
                 raw = " ".join(str(r) for r in raw)
@@ -417,7 +423,9 @@ class PolicyMatcher:
     """Evaluates raw FortiManager policy dicts against a requested flow
     using resolved set semantics (no substring matching)."""
 
-    def __init__(self, addr_catalog: AddressCatalog, svc_catalog: ServiceCatalog) -> None:
+    def __init__(
+        self, addr_catalog: AddressCatalog, svc_catalog: ServiceCatalog
+    ) -> None:
         self._addr = addr_catalog
         self._svc = svc_catalog
 
@@ -493,7 +501,9 @@ class PolicyMatcher:
                 return True
         return False
 
-    def uncovered_services(self, pol: dict, requested: list[PortRange]) -> list[PortRange]:
+    def uncovered_services(
+        self, pol: dict, requested: list[PortRange]
+    ) -> list[PortRange]:
         """Return requested PortRanges not fully contained by this policy's services."""
         refs = _names(pol.get("service", []))
         ranges: list[PortRange] = []
@@ -532,7 +542,8 @@ class PolicyMatcher:
         overlap = any(target_net.overlaps(n) for n in nets)
         collapsed = list(ipaddress.collapse_addresses(nets)) if nets else []
         contained = any(
-            target_net.subnet_of(n) for n in collapsed
+            target_net.subnet_of(n)
+            for n in collapsed
             if n.version == target_net.version
         )
 

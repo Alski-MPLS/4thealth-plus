@@ -30,12 +30,26 @@ class CodexProvider(LLMProvider):
             )
             text = response.choices[0].message.content or ""
         except ImportError as exc:
-            record_usage(provider="codex", model=self._model, input_tokens=0,
-                          output_tokens=0, cost_usd=0.0, success=False, error=str(exc))
+            record_usage(
+                provider="codex",
+                model=self._model,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                success=False,
+                error=str(exc),
+            )
             raise LLMError("the 'openai' package is not installed") from exc
         except Exception as exc:
-            record_usage(provider="codex", model=self._model, input_tokens=0,
-                          output_tokens=0, cost_usd=0.0, success=False, error=str(exc))
+            record_usage(
+                provider="codex",
+                model=self._model,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                success=False,
+                error=str(exc),
+            )
             raise LLMError(f"OpenAI API call failed: {exc}") from exc
 
         try:
@@ -44,8 +58,10 @@ class CodexProvider(LLMProvider):
         except Exception:
             input_tokens = output_tokens = 0
         record_usage(
-            provider="codex", model=self._model,
-            input_tokens=input_tokens, output_tokens=output_tokens,
+            provider="codex",
+            model=self._model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             cost_usd=estimate_cost("codex", self._model, input_tokens, output_tokens),
             success=True,
         )

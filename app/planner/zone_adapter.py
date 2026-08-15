@@ -15,7 +15,9 @@ from app import zone_db
 
 
 class ZoneDBAdapter:
-    def query(self, src: str, dst: str, service: str = "", verbose: bool = True) -> list[dict]:
+    def query(
+        self, src: str, dst: str, service: str = "", verbose: bool = True
+    ) -> list[dict]:
         """One src->dst verdict, shaped like zone_db.run_query's per-pair
         result: {"src", "dst", "service", "verdict", "src_zones",
         "dst_zones", "governing", "all_policies"}."""

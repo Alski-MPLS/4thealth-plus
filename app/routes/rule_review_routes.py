@@ -434,25 +434,34 @@ def rr_ai_assist():
 
     for fw in firewalls_raw:
         if not fw.get("device") or not fw.get("adom"):
-            return jsonify({
-                "error": "Each target firewall must include both a device and an ADOM "
-                         "(format: DEVICE:ADOM) — got an entry missing one or the other."
-            }), 400
+            return jsonify(
+                {
+                    "error": "Each target firewall must include both a device and an ADOM "
+                    "(format: DEVICE:ADOM) — got an entry missing one or the other."
+                }
+            ), 400
         if err := check_adom_access(fw["adom"]):
             return err
 
     from app.planner.engine import plan_change
     from app.planner.models import PlannerDataError, TargetFirewall
 
-    targets = [TargetFirewall(device=fw["device"], adom=fw["adom"]) for fw in firewalls_raw]
+    targets = [
+        TargetFirewall(device=fw["device"], adom=fw["adom"]) for fw in firewalls_raw
+    ]
 
     path_relevance: dict = {}
     try:
         with make_client() as fmg:
             plan = plan_change(
-                src=src, dst=dst, service=service, firewalls=targets,
-                justification=justification, ticket_id=ticket_id,
-                src_group=src_group, dst_group=dst_group,
+                src=src,
+                dst=dst,
+                service=service,
+                firewalls=targets,
+                justification=justification,
+                ticket_id=ticket_id,
+                src_group=src_group,
+                dst_group=dst_group,
                 fmg_client=fmg,
             )
 
@@ -473,16 +482,27 @@ def rr_ai_assist():
             dsts_list = [d.strip() for d in dst.split(",") if d.strip()]
             if len(srcs_list) == 1 and len(dsts_list) == 1:
                 from app.rule_review import check_path_relevance
+
                 for target in targets:
                     try:
-                        interfaces = fmg.get_device_interfaces_all_vdoms(target.adom, target.device)
-                        routes = fmg.get_device_routes_all_vdoms(target.adom, target.device)
+                        interfaces = fmg.get_device_interfaces_all_vdoms(
+                            target.adom, target.device
+                        )
+                        routes = fmg.get_device_routes_all_vdoms(
+                            target.adom, target.device
+                        )
                         path_relevance[target.device] = check_path_relevance(
-                            srcs_list[0], dsts_list[0], interfaces, routes,
+                            srcs_list[0],
+                            dsts_list[0],
+                            interfaces,
+                            routes,
                         )
                     except Exception:
-                        path_relevance[target.device] = {"in_path": None, "confidence": "low",
-                                                          "notes": ["Could not determine path relevance"]}
+                        path_relevance[target.device] = {
+                            "in_path": None,
+                            "confidence": "low",
+                            "notes": ["Could not determine path relevance"],
+                        }
     except PlannerDataError as exc:
         return jsonify({"error": str(exc), "source": exc.source}), 502
     except FMGError as exc:
@@ -497,6 +517,7 @@ def rr_ai_assist():
     try:
         import json as _json
         from app.llm import get_provider
+
         provider = get_provider()
         narrative = provider.narrate(
             system_prompt=(
@@ -512,9 +533,11 @@ def rr_ai_assist():
     except Exception as exc:
         narrative_error = str(exc)
 
-    return jsonify({
-        "plan": plan_dict,
-        "narrative": narrative,
-        "narrative_error": narrative_error,
-        "path_relevance": path_relevance,
-    })
+    return jsonify(
+        {
+            "plan": plan_dict,
+            "narrative": narrative,
+            "narrative_error": narrative_error,
+            "path_relevance": path_relevance,
+        }
+    )

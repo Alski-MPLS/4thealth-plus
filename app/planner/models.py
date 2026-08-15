@@ -26,6 +26,7 @@ class NormalizedFlow:
     """One consolidated request. src/dst/service are display strings
     (comma-joined); srcs/dsts/services are the member lists the engine
     plans over. service_ranges is the union of all service tokens."""
+
     src: str
     dst: str
     service: str
@@ -56,18 +57,18 @@ class TargetFirewall:
 
 @dataclass
 class ObjectPlan:
-    role: str        # "source" | "destination" | "service"
-    action: str      # "reuse" | "create"
+    role: str  # "source" | "destination" | "service"
+    action: str  # "reuse" | "create"
     name: str
-    obj_type: str    # "host" | "network" | "service"
-    value: str       # "10.1.2.3/32" or "tcp/8443"
-    cli: str = ""    # empty for reuse
+    obj_type: str  # "host" | "network" | "service"
+    value: str  # "10.1.2.3/32" or "tcp/8443"
+    cli: str = ""  # empty for reuse
 
 
 @dataclass
 class InsertionPlan:
     package: str
-    insert_before_policy_id: int | None   # None → append at end
+    insert_before_policy_id: int | None  # None → append at end
     rationale: str
     shadowed_by: list[int] = field(default_factory=list)
     would_shadow: list[int] = field(default_factory=list)
@@ -90,14 +91,15 @@ class GroupAppendAlternative:
     The planner picks the best candidate by specificity: a rule that exactly
     matches on the non-failing sides (e.g. exact destination host + exact
     service) is preferred over a broad catch-all that merely qualifies."""
+
     package: str
     policy_id: int
     policy_name: str
-    side: str                              # "source" | "destination"
-    group: str | None                      # None for direct-append
+    side: str  # "source" | "destination"
+    group: str | None  # None for direct-append
     members: list[ObjectPlan]
-    group_cli: str = ""                    # set for group-append; empty for direct
-    direct_cli: str = ""                   # set for direct-append; empty for group
+    group_cli: str = ""  # set for group-append; empty for direct
+    direct_cli: str = ""  # set for direct-append; empty for group
     affected_policies: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -106,7 +108,7 @@ class GroupAppendAlternative:
 class FirewallPlan:
     firewall: str
     adom: str
-    status: str                            # "already_covered" | "new_rule" | "not_found" | "error" | "no_action"
+    status: str  # "already_covered" | "new_rule" | "not_found" | "error" | "no_action"
     covering_rules: list[dict] = field(default_factory=list)
     partial_matches: list[dict] = field(default_factory=list)
     objects: list[ObjectPlan] = field(default_factory=list)
@@ -123,10 +125,10 @@ class FirewallPlan:
 class ChangePlan:
     ticket_id: str
     flow: NormalizedFlow
-    zone_verdict: dict                     # check_ip_traffic-shaped
+    zone_verdict: dict  # check_ip_traffic-shaped
     risk_level: str
     firewalls: list[FirewallPlan]
-    cli_status: str                        # "already_covered" | "new_rule" | "blocked_exception" | "unknown_no_action"
+    cli_status: str  # "already_covered" | "new_rule" | "blocked_exception" | "unknown_no_action"
     recommendation: str
     warnings: list[str] = field(default_factory=list)
     naming: dict = field(default_factory=dict)
