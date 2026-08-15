@@ -49,6 +49,12 @@ def test_explain_missing_check_returns_400(client):
     assert resp.status_code == 400
 
 
+def test_explain_non_dict_body_returns_400(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post(client, "/api/hygiene/explain-finding", [1])
+    assert resp.status_code == 400
+
+
 def test_explain_success(client):
     finding = {
         "check": "unlogged", "policy_name": "Allow-Web", "policy_id": "42",

@@ -266,10 +266,12 @@ function renderTable() {
     const color  = BADGE_COLORS[f.check] || '#94a3b8';
     const label  = checkLabels[f.check] || f.check;
     const rowId  = `finding-detail-${currentPage}-${i}`;
-    const isShadow     = f.check === 'shadow' && f.shadow_rule && f.shadowing_rule;
-    const hasDetail    = isShadow || !!f.rule_detail || _hygieneAiExplainAvailable;
+    const isShadow       = f.check === 'shadow' && f.shadow_rule && f.shadowing_rule;
+    const hasRuleDetail  = isShadow || !!f.rule_detail;
+    const hasDetail      = hasRuleDetail || _hygieneAiExplainAvailable;
+    const expandTitle = hasRuleDetail ? 'Show rule details' : 'Explain with AI';
     const expandBtn = hasDetail
-      ? ` <button class="shadow-expand-btn" data-target="${rowId}" title="Show rule details" aria-expanded="false">&#9660;</button>`
+      ? ` <button class="shadow-expand-btn" data-target="${rowId}" title="${expandTitle}" aria-expanded="false">&#9660;</button>`
       : '';
     const mainRow = `<tr class="${hasDetail ? 'shadow-finding-row' : ''}" ${hasDetail ? `data-target="${rowId}"` : ''}>
       <td style="font-size:.8rem;color:var(--text-muted)">${esc(String(f.seq || '—'))}</td>
@@ -1988,6 +1990,7 @@ async function runFindingExplain(btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(finding),
     });
+    if (resp.status === 401) { location.href = '/login'; return; }
     const data = await resp.json();
     out.textContent = data.narrative || ('AI explanation unavailable: ' + (data.narrative_error || data.error || 'unknown error'));
   } catch (e) {

@@ -93,6 +93,7 @@ app/
   auth.py              # Session-based login; bcrypt password verify against users.json
   fmg_client.py        # FortiManager JSON-RPC client (context manager: auto login/logout)
   hygiene.py           # Rule hygiene check engine (6 checks: unnamed, unlogged, shadow, disabled, expired, unhit)
+  hygiene_ai.py        # AI Explain for a single Rule Hygiene finding — narrates one already-computed finding, never re-runs a check
   device_review.py     # Device Review check engine — interface protocol checks; add new checks here
   rule_review.py       # Policy analysis + route-tracing engine; zone policy integration
   zone_db.py           # Zone policy DB engine — loads policy_db.json, runs queries, validates, handles CRUD
@@ -184,6 +185,15 @@ Two-section layout (tab displays as "Rule Review" in the nav; internal key remai
 2. **Hygiene Analysis** (below) — select ADOM + package, run 6 checks, filter/export findings (CSV/JSON/PDF).
 
 Backend: `POST /api/hygiene/policies` returns `srcaddr_exp`, `dstaddr_exp`, `service_exp` arrays with `{name, type, members?, detail?}` objects alongside the flat name lists. Also returns `srcintf`/`dstintf`.
+
+**AI Explain endpoints:**
+- `GET  /api/hygiene/ai-explain-status` — reports whether AI Explain is available (reads the `ai_assist_enabled` app-settings flag)
+- `POST /api/hygiene/explain-finding` — body is a single finding object; narrates it via `app/hygiene_ai.py`; returns `{narrative, narrative_error}`, never a 500
+
+AI Explain ("Explain" button on individual Hygiene Analysis findings) reuses
+the same `ai_assist_enabled` app-settings flag as Rule Validation's AI
+Assist and Device Review's AI Summary (Admin → AI Assist) — there is no
+separate Rule Review toggle.
 
 ### Device Review tab
 

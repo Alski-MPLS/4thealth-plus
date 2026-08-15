@@ -2,6 +2,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 
 def test_explain_finding_with_rule_detail():
     from app.hygiene_ai import explain_finding
@@ -56,3 +58,18 @@ def test_explain_finding_with_shadow_rules():
     sent = json.loads(user_prompt)
     assert sent["shadow_rule"]["id"] == "10"
     assert sent["shadowing_rule"]["id"] == "3"
+
+
+def test_explain_finding_rejects_oversized_payload():
+    from app.hygiene_ai import explain_finding
+
+    finding = {
+        "policy_id": "42", "policy_name": "Allow-Web", "seq": 5,
+        "check": "unlogged", "detail": "logtraffic = 'disable' — no traffic logging.",
+        "rule_detail": {"comment": "x" * 100_000},
+    }
+
+    with patch("app.llm.get_provider") as mock_get_provider:
+        with pytest.raises(ValueError, match="too large"):
+            explain_finding(finding)
+    mock_get_provider.return_value.narrate.assert_not_called()

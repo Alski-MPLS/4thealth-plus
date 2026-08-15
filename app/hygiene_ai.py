@@ -33,6 +33,12 @@ def explain_finding(finding: dict) -> str:
     elif "rule_detail" in finding:
         payload["rule_detail"] = finding["rule_detail"]
 
+    payload_json = json.dumps(payload, default=str)
+    if len(payload_json) > 64_000:
+        raise ValueError(
+            "Finding payload too large to explain (exceeds 64,000 characters)"
+        )
+
     provider = get_provider()
     return provider.narrate(
         system_prompt=(
@@ -46,5 +52,5 @@ def explain_finding(finding: dict) -> str:
             "not present in the JSON, and never claim the change has been "
             "applied — the snippet is a suggestion for a human reviewer."
         ),
-        user_prompt=json.dumps(payload, default=str),
+        user_prompt=payload_json,
     )

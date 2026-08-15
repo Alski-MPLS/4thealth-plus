@@ -1150,6 +1150,8 @@ def hygiene_explain_finding():
         return jsonify({"error": "AI Assist is not enabled"}), 503
 
     finding = request.get_json(silent=True) or {}
+    if not isinstance(finding, dict):
+        return jsonify({"error": "body must be a finding object"}), 400
     if not finding.get("check"):
         return jsonify({"error": "check is required"}), 400
 
