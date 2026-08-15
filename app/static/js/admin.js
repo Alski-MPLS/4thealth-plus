@@ -896,6 +896,42 @@
     loadHostMetrics(active ? active.dataset.range : '1h');
   }, 60000);
 
+  async function checkHostMetricsAiAvailability() {
+    const box = document.getElementById('hmAiSummaryBox');
+    if (!box) return;
+    try {
+      const resp = await fetch('/admin/api/settings');
+      const data = await resp.json();
+      box.style.display = data.ai_assist_enabled ? '' : 'none';
+    } catch (e) {
+      box.style.display = 'none';
+    }
+  }
+
+  function wireHostMetricsAiSummaryButton() {
+    const btn = document.getElementById('hmAiSummaryBtn');
+    const out = document.getElementById('hmAiSummaryOutput');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      out.textContent = '';
+      try {
+        const resp = await fetch('/admin/api/host-metrics/ai-summary');
+        const data = await resp.json();
+        out.textContent = data.narrative || ('AI summary unavailable: ' + (data.narrative_error || data.error || 'unknown error'));
+      } catch (e) {
+        out.textContent = 'AI summary request failed: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate AI Trend Summary';
+      }
+    });
+  }
+
+  checkHostMetricsAiAvailability();
+  wireHostMetricsAiSummaryButton();
+
   // ══════════════════════  ZONE POLICY (Validate + Edit)  ════════════════════
 
   let _zonePolicyLoaded = false;
