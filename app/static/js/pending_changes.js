@@ -31,6 +31,60 @@ let vdomPageState  = new Map(); // vdom.name → { page, pageSize }
 let bulkRunning   = false;   // true while a bulk export run is in progress
 let bulkCancelled = false;   // set by cancelBulkExport() to abort the loop
 let _beforeUnloadHandler = null;
+let _pcAiAssistAvailable = false;
+
+/* ── AI diff summary ────────────────────────────────────────────────────────── */
+async function checkPcAiSummaryAvailability() {
+  try {
+    const resp = await fetch('/api/pending-changes/ai-summary-status');
+    if (resp.status === 401) { location.href = '/login'; return; }
+    const data = await resp.json();
+    _pcAiAssistAvailable = !!data.available;
+  } catch (e) {
+    _pcAiAssistAvailable = false;
+  }
+}
+
+function hidePcAiSummaryBox() {
+  const box = document.getElementById('pcAiSummaryBox');
+  if (box) box.style.display = 'none';
+}
+
+function showPcAiSummaryBoxIfAvailable(adom, device, diffResult) {
+  const box = document.getElementById('pcAiSummaryBox');
+  if (!box) return;
+  const hasChanges = (diffResult.vdoms || []).some(v => (v.changes || []).length);
+  if (!_pcAiAssistAvailable || !hasChanges) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const btn = document.getElementById('pcAiSummaryBtn');
+  const out = document.getElementById('pcAiSummaryOutput');
+  out.textContent = '';
+  btn.disabled = false;
+  btn.textContent = 'Summarize with AI';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Summarizing…';
+    out.textContent = '';
+    try {
+      const resp = await fetch(
+        `/api/pending-changes/adoms/${encodeURIComponent(adom)}/device/${encodeURIComponent(device)}/ai-summary`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: diffResult.summary, vdoms: diffResult.vdoms }),
+        }
+      );
+      if (resp.status === 401) { location.href = '/login'; return; }
+      const data = await resp.json();
+      out.textContent = data.narrative || ('AI summary unavailable: ' + (data.narrative_error || data.error || 'unknown error'));
+    } catch (e) {
+      out.textContent = 'AI summary request failed: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Summarize with AI';
+    }
+  };
+}
 
 /* ── Status badges ───────────────────────────────────────────────────────────── */
 
@@ -238,6 +292,7 @@ async function loadPreview(adom, deviceName) {
         currentDiff.adom = adom;
         currentDiff.timestamp = new Date().toISOString();
         renderDiffPanel(currentDiff);
+        showPcAiSummaryBoxIfAvailable(adom, deviceName, currentDiff);
       } else {
         showDiffError(deviceName, task.error || 'Unknown error from server.');
       }
@@ -263,11 +318,13 @@ function setVdomPage(vdomName, newPage, newPageSize) {
 function clearDiffPanel() {
   currentDevice = null;
   currentDiff   = null;
+  hidePcAiSummaryBox();
   document.getElementById('pcDiffPanel').innerHTML =
     '<p style="color:var(--text-muted);font-style:italic">Select a device to view pending changes.</p>';
 }
 
 function showDiffSpinner(deviceName, step) {
+  hidePcAiSummaryBox();
   document.getElementById('pcDiffPanel').innerHTML = `
     <div style="padding:1.5rem;text-align:center">
       <div class="spinner" style="display:inline-block;width:28px;height:28px;border:3px solid var(--border);
@@ -280,6 +337,7 @@ function showDiffSpinner(deviceName, step) {
 }
 
 function showDiffError(deviceName, msg) {
+  hidePcAiSummaryBox();
   document.getElementById('pcDiffPanel').innerHTML =
     `<div class="alert alert-danger"><strong>${esc(deviceName)}</strong>: ${esc(msg)}</div>`;
 }
@@ -816,6 +874,7 @@ function handleAdomChange(adom) {
 /* ── Init ───────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   fetchAdoms();
+  checkPcAiSummaryAvailability();
 
   document.getElementById('pcAdom').addEventListener('change', e => handleAdomChange(e.target.value));
   document.getElementById('pcPageSize').addEventListener('change', e => {
