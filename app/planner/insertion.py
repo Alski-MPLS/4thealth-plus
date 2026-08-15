@@ -33,8 +33,9 @@ def _intf_scoped(pol: dict, srcintf: str, dstintf: str) -> bool:
             return True
         return any(r in ("any", "") or r == want for r in refs)
 
-    return _side(_names(pol.get("srcintf", [])), srcintf) and \
-        _side(_names(pol.get("dstintf", [])), dstintf)
+    return _side(_names(pol.get("srcintf", [])), srcintf) and _side(
+        _names(pol.get("dstintf", [])), dstintf
+    )
 
 
 def _is_catchall_deny(pol: dict) -> bool:
@@ -93,9 +94,7 @@ def _policy_within_candidate(
         pol_ranges.extend(resolved)
     if not pol_ranges:
         return False
-    return all(
-        any(req.contains(r) for req in service_ranges) for r in pol_ranges
-    )
+    return all(any(req.contains(r) for req in service_ranges) for r in pol_ranges)
 
 
 def plan_insertion(
@@ -118,7 +117,8 @@ def plan_insertion(
         )
 
     scoped = [
-        pol for pol in ordered_policies
+        pol
+        for pol in ordered_policies
         if isinstance(pol, dict) and _intf_scoped(pol, srcintf, dstintf)
     ]
 

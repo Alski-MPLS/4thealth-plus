@@ -379,7 +379,9 @@ def api_host_metrics_ai_summary():
     except Exception as exc:
         narrative_error = str(exc)
 
-    return jsonify({"trends": trends, "narrative": narrative, "narrative_error": narrative_error})
+    return jsonify(
+        {"trends": trends, "narrative": narrative, "narrative_error": narrative_error}
+    )
 
 
 # ── External API tokens ───────────────────────────────────────────────────────

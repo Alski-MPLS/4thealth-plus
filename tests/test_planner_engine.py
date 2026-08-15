@@ -1,11 +1,28 @@
 """Tests for app.planner.engine.plan_change — the deterministic core."""
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from app.planner import standards
 from app.planner.engine import plan_change
 from app.planner.models import PlannerDataError, TargetFirewall
 from app.planner.zone_adapter import ZoneDBAdapter
+
+_REPO_ROOT = Path(__file__).parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _use_example_standards_files(monkeypatch):
+    """plan_change() reads naming.yaml/review_requirements.yaml via
+    standards.load_naming()/review_requirements() with no path override, so
+    it always hits the real (gitignored, team-maintained) files. Point it at
+    the committed .example.yaml templates instead so these tests are
+    self-contained and don't depend on runtime config existing on disk."""
+    monkeypatch.setattr(standards, "_NAMING_FILE", _REPO_ROOT / "naming.example.yaml")
+    monkeypatch.setattr(
+        standards, "_REVIEW_FILE", _REPO_ROOT / "review_requirements.example.yaml"
+    )
 
 
 def _zone_client(verdict="ALLOWED", src_zones=("DMZ",), dst_zones=("Internet",)):

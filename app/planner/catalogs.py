@@ -27,7 +27,9 @@ def build_catalogs(client, adom: str) -> tuple[AddressCatalog, ServiceCatalog]:
         global_addr_groups = client.get_address_groups("global")
     except Exception:
         global_addr_objects, global_addr_groups = [], []
-    addr_catalog = AddressCatalog(addr_objects, addr_groups, global_addr_objects, global_addr_groups)
+    addr_catalog = AddressCatalog(
+        addr_objects, addr_groups, global_addr_objects, global_addr_groups
+    )
 
     svc_objects = client.get_service_objects(adom)
     svc_groups = client.get_service_groups(adom)
@@ -41,14 +43,12 @@ def package_targets_device(pkg: dict, device: str) -> bool:
     scope = pkg.get("scope member", pkg.get("scope_member", []))
     if not scope:
         return True  # global/unscoped packages apply to all
-    return any(
-        s.get("name", "") == device
-        for s in scope
-        if isinstance(s, dict)
-    )
+    return any(s.get("name", "") == device for s in scope if isinstance(s, dict))
 
 
-def get_device_policies(client, adom: str, device_pkgs: list[str]) -> dict[str, list[dict] | None]:
+def get_device_policies(
+    client, adom: str, device_pkgs: list[str]
+) -> dict[str, list[dict] | None]:
     """Fetch policies for exactly the given package names.
 
     A None value for a package means the fetch failed (caller degrades —
@@ -57,7 +57,9 @@ def get_device_policies(client, adom: str, device_pkgs: list[str]) -> dict[str, 
     result: dict[str, list[dict] | None] = {}
     for pkg in device_pkgs:
         try:
-            result[pkg] = [p for p in client.get_policies(adom, pkg) if isinstance(p, dict)]
+            result[pkg] = [
+                p for p in client.get_policies(adom, pkg) if isinstance(p, dict)
+            ]
         except Exception:
             result[pkg] = None
     return result
@@ -65,6 +67,7 @@ def get_device_policies(client, adom: str, device_pkgs: list[str]) -> dict[str, 
 
 def summarise_policy(pol: dict, package_name: str) -> dict[str, Any]:
     """Human-readable summary of one raw FortiManager policy dict."""
+
     def _names(field) -> list[str]:
         if isinstance(field, list):
             return [x if isinstance(x, str) else x.get("name", str(x)) for x in field]

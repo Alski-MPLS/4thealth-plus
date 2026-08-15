@@ -33,8 +33,11 @@ def _load_yaml(path: str) -> dict:
         with open(path, encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
     except FileNotFoundError as exc:
-        example = f"{path}.example" if not path.endswith(".yaml") else \
-            path.rsplit(".yaml", 1)[0] + ".example.yaml"
+        example = (
+            f"{path}.example"
+            if not path.endswith(".yaml")
+            else path.rsplit(".yaml", 1)[0] + ".example.yaml"
+        )
         raise PlannerDataError(
             "standards",
             f"required standards file {path!r} is missing — copy it from "
@@ -46,8 +49,14 @@ def load_naming(path: Path | None = None) -> dict:
     return _load_yaml(str(path or _NAMING_FILE))
 
 
-def object_name(obj_type: str, *, ip: str = "", proto: str = "",
-                port: str = "", naming: dict | None = None) -> str:
+def object_name(
+    obj_type: str,
+    *,
+    ip: str = "",
+    proto: str = "",
+    port: str = "",
+    naming: dict | None = None,
+) -> str:
     """Generate an object name per the FortiGate conventions in naming.yaml."""
     if obj_type == "host":
         return f"H_{ip.split('/')[0]}"
@@ -77,8 +86,9 @@ def _domains_for(zones: list[str], zone_domains: dict[str, str]) -> set[str] | N
     return domains
 
 
-def risk_level(src_zones: list[str], dst_zones: list[str],
-               zone_domains: dict[str, str]) -> str:
+def risk_level(
+    src_zones: list[str], dst_zones: list[str], zone_domains: dict[str, str]
+) -> str:
     """
     critical — any CIP-H/OT/Nuclear zone, Internet on either side, or any
                unresolvable zone (fail safe)
@@ -105,8 +115,12 @@ def risk_level(src_zones: list[str], dst_zones: list[str],
     return "medium"
 
 
-def rule_type_for(verdict: str, src_domains: set[str], dst_domains: set[str],
-                  service_ranges: list[PortRange]) -> str:
+def rule_type_for(
+    verdict: str,
+    src_domains: set[str],
+    dst_domains: set[str],
+    service_ranges: list[PortRange],
+) -> str:
     """Map a flow onto a naming.yaml log_settings key.
 
     The zone pair decides the profile even for BLOCKED flows — an approved
@@ -146,7 +160,9 @@ _WIDE_PORT_SPAN = 1024
 
 
 def permissiveness_warnings(
-    srcs: list[str], dsts: list[str], service_ranges: list[PortRange],
+    srcs: list[str],
+    dsts: list[str],
+    service_ranges: list[PortRange],
 ) -> list[str]:
     """Least-privilege review of the *request itself* (NIST SP 800-41):
     flag any-source/any-destination, very broad CIDRs, any-service, and
@@ -183,8 +199,10 @@ def permissiveness_warnings(
         )
     else:
         for r in service_ranges:
-            if r.protocol in ("tcp", "udp", "sctp") and \
-                    (r.end - r.start + 1) > _WIDE_PORT_SPAN:
+            if (
+                r.protocol in ("tcp", "udp", "sctp")
+                and (r.end - r.start + 1) > _WIDE_PORT_SPAN
+            ):
                 warnings.append(
                     f"Service {r.protocol}/{r.start}-{r.end} spans "
                     f"{r.end - r.start + 1} ports — confirm the application "

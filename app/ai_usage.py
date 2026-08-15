@@ -61,8 +61,13 @@ def record_usage(
                 "output_tokens, cost_usd, success, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     dt.datetime.now(dt.timezone.utc).isoformat(),
-                    provider, model, input_tokens, output_tokens, cost_usd,
-                    1 if success else 0, error,
+                    provider,
+                    model,
+                    input_tokens,
+                    output_tokens,
+                    cost_usd,
+                    1 if success else 0,
+                    error,
                 ),
             )
             conn.commit()
@@ -111,10 +116,16 @@ def usage_summary(start: dt.datetime, end: dt.datetime, num_buckets: int = 24) -
     for i in range(num_buckets):
         b_start = start + dt.timedelta(seconds=bucket_seconds * i)
         b_end = start + dt.timedelta(seconds=bucket_seconds * (i + 1))
-        buckets.append({
-            "start": b_start.isoformat(), "end": b_end.isoformat(),
-            "count": 0, "cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0,
-        })
+        buckets.append(
+            {
+                "start": b_start.isoformat(),
+                "end": b_end.isoformat(),
+                "count": 0,
+                "cost_usd": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        )
 
     total_calls = 0
     total_cost = 0.0

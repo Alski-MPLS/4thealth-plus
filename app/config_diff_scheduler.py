@@ -241,7 +241,9 @@ def _execute_job(job_id: str) -> None:
         generated_at = datetime.datetime.utcnow().isoformat() + "Z"
         subject = f"4THealth+ Config-Delta — {adom} — {generated_at[:10]}"
         body_html = _build_summary_html(adom, results, ai_narrative_html)
-        attachment = _build_attachment(adom, fmt, results, generated_at, ai_narrative_html)
+        attachment = _build_attachment(
+            adom, fmt, results, generated_at, ai_narrative_html
+        )
 
         from app.smtp_client import send_email
 
@@ -288,9 +290,7 @@ def _esc(s) -> str:
     return str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _build_ai_narrative_html(
-    adom: str, results: list[dict]
-) -> tuple[str, str | None]:
+def _build_ai_narrative_html(adom: str, results: list[dict]) -> tuple[str, str | None]:
     """Return (html, error) for the AI narrative section.
 
     html is '' if disabled/unavailable, there are no changes to summarize, or
@@ -302,9 +302,7 @@ def _build_ai_narrative_html(
     if not get_setting("ai_assist_enabled", False):
         return "", None
 
-    has_changes = any(
-        v.get("changes") for r in results for v in (r.get("vdoms") or [])
-    )
+    has_changes = any(v.get("changes") for r in results for v in (r.get("vdoms") or []))
     if not has_changes:
         return "", None
 

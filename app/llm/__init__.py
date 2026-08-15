@@ -19,11 +19,16 @@ def get_provider() -> LLMProvider:
     provider = (Config.AI_PROVIDER or "claude").lower()
     if provider == "claude":
         from app.llm.claude_provider import ClaudeProvider
+
         return ClaudeProvider()
     if provider == "codex":
         from app.llm.codex_provider import CodexProvider
+
         return CodexProvider()
     if provider == "ollama":
         from app.llm.ollama_provider import OllamaProvider
+
         return OllamaProvider()
-    raise LLMError(f"Unknown AI_PROVIDER {provider!r} — expected claude, codex, or ollama")
+    raise LLMError(
+        f"Unknown AI_PROVIDER {provider!r} — expected claude, codex, or ollama"
+    )

@@ -26,7 +26,11 @@ def _trim_device(dev: dict) -> dict:
         changes = vdom.get("changes", [])[:remaining]
         remaining -= len(changes)
         vdoms_out.append({"name": vdom.get("name", "root"), "changes": changes})
-    return {"device": dev.get("device", ""), "summary": dev.get("summary", {}), "vdoms": vdoms_out}
+    return {
+        "device": dev.get("device", ""),
+        "summary": dev.get("summary", {}),
+        "vdoms": vdoms_out,
+    }
 
 
 def build_diff_narrative(adom: str, devices: list[dict]) -> str:
@@ -37,7 +41,9 @@ def build_diff_narrative(adom: str, devices: list[dict]) -> str:
     """
     from app.llm import get_provider
 
-    with_changes = [d for d in devices if any(v.get("changes") for v in d.get("vdoms", []))]
+    with_changes = [
+        d for d in devices if any(v.get("changes") for v in d.get("vdoms", []))
+    ]
     detailed = [_trim_device(d) for d in with_changes[:_MAX_DEVICES_DETAILED]]
     omitted_count = max(0, len(with_changes) - _MAX_DEVICES_DETAILED)
 

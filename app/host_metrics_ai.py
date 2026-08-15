@@ -26,8 +26,11 @@ def compute_trend(series: list[dict], threshold: float = 90.0) -> dict:
     points = [(p["ts"], p["v"]) for p in series if p.get("v") is not None]
     if len(points) < 2:
         return {
-            "start": None, "end": None, "pct_change": None,
-            "slope_per_day": None, "days_to_threshold": None,
+            "start": None,
+            "end": None,
+            "pct_change": None,
+            "slope_per_day": None,
+            "days_to_threshold": None,
         }
 
     start_ts, start_v = points[0]

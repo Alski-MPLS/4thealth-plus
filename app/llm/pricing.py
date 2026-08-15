@@ -19,7 +19,9 @@ _RATES: dict[str, tuple[float, float]] = {
 }
 
 
-def estimate_cost(provider: str, model: str, input_tokens: int, output_tokens: int) -> float:
+def estimate_cost(
+    provider: str, model: str, input_tokens: int, output_tokens: int
+) -> float:
     """Rough $ cost for one call. Unrecognized/Ollama models return 0.0
     rather than guessing — an unpriced call should read as free, not
     silently wrong."""
@@ -29,4 +31,6 @@ def estimate_cost(provider: str, model: str, input_tokens: int, output_tokens: i
     if rates is None:
         return 0.0
     input_rate, output_rate = rates
-    return (input_tokens / 1_000_000) * input_rate + (output_tokens / 1_000_000) * output_rate
+    return (input_tokens / 1_000_000) * input_rate + (
+        output_tokens / 1_000_000
+    ) * output_rate

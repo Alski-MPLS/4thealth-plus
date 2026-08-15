@@ -15,7 +15,11 @@ import ipaddress
 from dataclasses import dataclass, field
 
 from app.fmg_client import FMGClient, FMGError
-from app.planner.catalogs import build_catalogs, get_device_policies, package_targets_device
+from app.planner.catalogs import (
+    build_catalogs,
+    get_device_policies,
+    package_targets_device,
+)
 from app.planner.matching import AddressCatalog, ServiceCatalog
 from app.planner.models import PlannerDataError
 from app.planner.zone_adapter import ZoneDBAdapter
@@ -26,7 +30,7 @@ class DeviceSnapshot:
     device: str
     adom: str
     packages: list[str]
-    policies_by_package: dict[str, list[dict]]   # raw dicts, package order preserved
+    policies_by_package: dict[str, list[dict]]  # raw dicts, package order preserved
     addr_catalog: AddressCatalog
     svc_catalog: ServiceCatalog
     interfaces: list[dict]
@@ -35,9 +39,7 @@ class DeviceSnapshot:
     failures: list[str] = field(default_factory=list)
 
 
-def fetch_device_snapshot(
-    client: FMGClient, adom: str, device: str
-) -> DeviceSnapshot:
+def fetch_device_snapshot(client: FMGClient, adom: str, device: str) -> DeviceSnapshot:
     """Fetch everything the planner needs about one device.
 
     Raises PlannerDataError if the device is unknown or the object catalogs
@@ -47,7 +49,9 @@ def fetch_device_snapshot(
     try:
         devices = client.get_devices(adom)
     except FMGError as exc:
-        raise PlannerDataError("fortimanager", f"cannot list devices in ADOM {adom!r}: {exc}") from exc
+        raise PlannerDataError(
+            "fortimanager", f"cannot list devices in ADOM {adom!r}: {exc}"
+        ) from exc
 
     names = {d.get("name", "") for d in devices if isinstance(d, dict)}
     if device not in names:
@@ -60,10 +64,13 @@ def fetch_device_snapshot(
         packages = client.get_policy_packages(adom)
         addr_catalog, svc_catalog = build_catalogs(client, adom)
     except FMGError as exc:
-        raise PlannerDataError("fortimanager", f"cannot fetch object catalogs: {exc}") from exc
+        raise PlannerDataError(
+            "fortimanager", f"cannot fetch object catalogs: {exc}"
+        ) from exc
 
     device_pkgs = [
-        p.get("path", p.get("name", "")) for p in packages
+        p.get("path", p.get("name", ""))
+        for p in packages
         if isinstance(p, dict) and package_targets_device(p, device)
     ]
 
@@ -80,13 +87,17 @@ def fetch_device_snapshot(
 
     interfaces: list[dict] = []
     try:
-        interfaces = [i for i in client.get_device_interfaces(adom, device) if isinstance(i, dict)]
+        interfaces = [
+            i for i in client.get_device_interfaces(adom, device) if isinstance(i, dict)
+        ]
     except FMGError as exc:
         failures.append(f"interfaces: {exc}")
 
     routing_table: list[dict] = []
     try:
-        routing_table = [r for r in client.get_device_routes(adom, device) if isinstance(r, dict)]
+        routing_table = [
+            r for r in client.get_device_routes(adom, device) if isinstance(r, dict)
+        ]
     except Exception:
         # Routing table is used only for interface-name resolution — failure
         # here does not affect coverage analysis, so do not set degraded.
@@ -114,8 +125,12 @@ DEFAULT_UNMATCHED_ZONE = "Internet"
 
 
 def _apply_internet_default(
-    zc: ZoneDBAdapter, service: str, verdict: str,
-    src_zones: list, dst_zones: list, governing: list,
+    zc: ZoneDBAdapter,
+    service: str,
+    verdict: str,
+    src_zones: list,
+    dst_zones: list,
+    governing: list,
 ) -> tuple[str, list, list, list, list[str]]:
     """Substitute the catch-all Internet zone for unresolved endpoints and
     re-derive the verdict from the live zone policy table."""
@@ -128,8 +143,7 @@ def _apply_internet_default(
         raise PlannerDataError("4thealth", str(exc)) from exc
 
     zones_by_name = {
-        z.get("name", ""): z
-        for z in catalogue.get("zones", []) if isinstance(z, dict)
+        z.get("name", ""): z for z in catalogue.get("zones", []) if isinstance(z, dict)
     }
     if DEFAULT_UNMATCHED_ZONE not in zones_by_name:
         notes.append(
@@ -305,11 +319,18 @@ def _resolve_one(
         net = _route_network(route)
         raw_dev = route.get("device", "")
         iface_name = (
-            raw_dev[0] if isinstance(raw_dev, list) and raw_dev
-            else raw_dev if isinstance(raw_dev, str)
+            raw_dev[0]
+            if isinstance(raw_dev, list) and raw_dev
+            else raw_dev
+            if isinstance(raw_dev, str)
             else str(raw_dev)
         )
-        if net is not None and iface_name and net.overlaps(target) and net.prefixlen > best_route[1]:
+        if (
+            net is not None
+            and iface_name
+            and net.overlaps(target)
+            and net.prefixlen > best_route[1]
+        ):
             best_route = (iface_name, net.prefixlen)
     if best_route[0]:
         warnings.append(

@@ -32,7 +32,11 @@ from app.planner.fetch import (
     fetch_zone_verdict,
 )
 from app.planner.insertion import _intf_scoped, plan_insertion
-from app.planner.matching import PolicyMatcher, _names as _ref_names, parse_service_request
+from app.planner.matching import (
+    PolicyMatcher,
+    _names as _ref_names,
+    parse_service_request,
+)
 from app.planner.models import (
     ChangePlan,
     FirewallPlan,
@@ -50,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 def _default_fmg_client() -> FMGClient:
     from app.fmg_helpers import make_client
+
     client = make_client()
     client.login()
     return client
@@ -63,6 +68,7 @@ def _default_zone_client() -> ZoneDBAdapter:
 # Object planning
 # ---------------------------------------------------------------------------
 
+
 def _normalize_cidr(ip: str) -> str:
     net = ipaddress.ip_network(ip, strict=False)
     return str(net)
@@ -72,35 +78,56 @@ def _address_object_plan(role: str, ip: str, snapshot: DeviceSnapshot) -> Object
     cidr = _normalize_cidr(ip)
     existing = snapshot.addr_catalog.exact_match_name(cidr)
     if existing:
-        return ObjectPlan(role=role, action="reuse", name=existing,
-                          obj_type="host" if cidr.endswith("/32") else "network",
-                          value=cidr)
+        return ObjectPlan(
+            role=role,
+            action="reuse",
+            name=existing,
+            obj_type="host" if cidr.endswith("/32") else "network",
+            value=cidr,
+        )
     if cidr.endswith("/32"):
         name = standards.object_name("host", ip=cidr)
         obj_type = "host"
     else:
         name = standards.object_name("network", ip=cidr)
         obj_type = "network"
-    return ObjectPlan(role=role, action="create", name=name, obj_type=obj_type,
-                      value=cidr, cli=cli_gen.address_object_cli(name, cidr))
+    return ObjectPlan(
+        role=role,
+        action="create",
+        name=name,
+        obj_type=obj_type,
+        value=cidr,
+        cli=cli_gen.address_object_cli(name, cidr),
+    )
 
 
 def _service_object_plan(token: str, snapshot: DeviceSnapshot) -> ObjectPlan:
     ranges = parse_service_request(token)
     if any(r.protocol == "ip" for r in ranges):
         # wildcard service — FortiGate's built-in ALL object, never created
-        return ObjectPlan(role="service", action="reuse", name="ALL",
-                          obj_type="service", value=token)
+        return ObjectPlan(
+            role="service", action="reuse", name="ALL", obj_type="service", value=token
+        )
     existing = snapshot.svc_catalog.exact_match_name(ranges)
     if existing:
-        return ObjectPlan(role="service", action="reuse", name=existing,
-                          obj_type="service", value=token)
+        return ObjectPlan(
+            role="service",
+            action="reuse",
+            name=existing,
+            obj_type="service",
+            value=token,
+        )
     r = ranges[0]
     port_expr = str(r.start) if r.start == r.end else f"{r.start}-{r.end}"
     name = standards.object_name("service", proto=r.protocol, port=port_expr)
-    return ObjectPlan(role="service", action="create", name=name,
-                      obj_type="service", value=f"{r.protocol}/{port_expr}",
-                      cli=cli_gen.service_object_cli(name, r.protocol, port_expr))
+    return ObjectPlan(
+        role="service",
+        action="create",
+        name=name,
+        obj_type="service",
+        value=f"{r.protocol}/{port_expr}",
+        cli=cli_gen.service_object_cli(name, r.protocol, port_expr),
+    )
 
 
 # Sides with more members than this get a dedicated address group; smaller
@@ -109,7 +136,10 @@ GROUP_THRESHOLD = 3
 
 
 def _side_plan(
-    objs: list[ObjectPlan], explicit_group: str, ticket_id: str, tag: str,
+    objs: list[ObjectPlan],
+    explicit_group: str,
+    ticket_id: str,
+    tag: str,
 ) -> tuple[list[str], list[ObjectPlan]]:
     """Return (policy member refs, extra group ObjectPlans) for one side."""
     names = [o.name for o in objs]
@@ -117,7 +147,9 @@ def _side_plan(
         gname = explicit_group or f"GRP_{ticket_id or '<TICKET_ID>'}_{tag}"
         group = ObjectPlan(
             role=f"{'source' if tag == 'SRC' else 'destination'}-group",
-            action="create", name=gname, obj_type="group",
+            action="create",
+            name=gname,
+            obj_type="group",
             value=", ".join(names),
             cli=cli_gen.addrgrp_create_cli(gname, names),
         )
@@ -128,6 +160,7 @@ def _side_plan(
 # ---------------------------------------------------------------------------
 # Per-firewall planning
 # ---------------------------------------------------------------------------
+
 
 def _plan_firewall(
     target: TargetFirewall,
@@ -145,7 +178,9 @@ def _plan_firewall(
     except PlannerDataError as exc:
         status = "not_found" if "not found" in exc.detail else "error"
         return FirewallPlan(
-            firewall=target.device, adom=target.adom, status=status,
+            firewall=target.device,
+            adom=target.adom,
+            status=status,
             warnings=[str(exc)],
         )
 
@@ -164,9 +199,15 @@ def _plan_firewall(
     # rules that apply to the flow's interface pair — a broad LAN->WAN accept
     # rule does not cover an east-west flow on a real FortiGate.
     fw.srcintf = _resolve_side_interface(
-        snapshot, flow.srcs, zone_verdict.get("src_zones", []), "Source", fw.warnings)
+        snapshot, flow.srcs, zone_verdict.get("src_zones", []), "Source", fw.warnings
+    )
     fw.dstintf = _resolve_side_interface(
-        snapshot, flow.dsts, zone_verdict.get("dst_zones", []), "Destination", fw.warnings)
+        snapshot,
+        flow.dsts,
+        zone_verdict.get("dst_zones", []),
+        "Destination",
+        fw.warnings,
+    )
 
     # --- existing-rule coverage -------------------------------------------
     # A consolidated request is covered only if EVERY src×dst pair is fully
@@ -175,14 +216,16 @@ def _plan_firewall(
     pair_covered: dict[tuple[str, str], list[int]] = {p: [] for p in pairs}
     for pkg, policies in snapshot.policies_by_package.items():
         for pol in policies:
-            results = {p: matcher.evaluate(pol, p[0], p[1], flow.service_ranges)
-                       for p in pairs}
+            results = {
+                p: matcher.evaluate(pol, p[0], p[1], flow.service_ranges) for p in pairs
+            }
             if not any(r.matched for r in results.values()):
                 continue
             summary = summarise_policy(pol, pkg)
             any_r = next(iter(results.values()))
             conditions_ok = (
-                any_r.action == "accept" and not any_r.disabled
+                any_r.action == "accept"
+                and not any_r.disabled
                 and not any_r.conditional_schedule
                 and not any(r.unknown_refs for r in results.values())
                 and _intf_scoped(pol, fw.srcintf, fw.dstintf)
@@ -208,8 +251,10 @@ def _plan_firewall(
                 # unresolvable refs with no actual IP-range overlap. These are
                 # application-specific policies that have no real relationship
                 # to the requested destination IP.
-                if not pol.get("dstaddr-negate", "disable") in ("enable", 1, True):
-                    if not any(matcher.addr_ip_overlap(pol, "dstaddr", d) for d in flow.dsts):
+                if pol.get("dstaddr-negate", "disable") not in ("enable", 1, True):
+                    if not any(
+                        matcher.addr_ip_overlap(pol, "dstaddr", d) for d in flow.dsts
+                    ):
                         continue
                 # Annotate which requested services aren't covered — engineers
                 # can see at a glance what the gap is without reading the policy.
@@ -238,11 +283,14 @@ def _plan_firewall(
     # --- new rule (or exception) -------------------------------------------
 
     src_objs = _dedupe_objects(
-        [_address_object_plan("source", s, snapshot) for s in flow.srcs])
+        [_address_object_plan("source", s, snapshot) for s in flow.srcs]
+    )
     dst_objs = _dedupe_objects(
-        [_address_object_plan("destination", d, snapshot) for d in flow.dsts])
+        [_address_object_plan("destination", d, snapshot) for d in flow.dsts]
+    )
     svc_objs = _dedupe_objects(
-        [_service_object_plan(tok, snapshot) for tok in flow.services])
+        [_service_object_plan(tok, snapshot) for tok in flow.services]
+    )
 
     src_refs, src_groups = _side_plan(src_objs, src_group, ticket_id, "SRC")
     dst_refs, dst_groups = _side_plan(dst_objs, dst_group, ticket_id, "DST")
@@ -259,8 +307,11 @@ def _plan_firewall(
     insertion: InsertionPlan | None = None
     pkg_for_insertion = None
     for pkg, policies in snapshot.policies_by_package.items():
-        if any(matcher.evaluate(p, s, d, flow.service_ranges).matched
-               for p in policies for s, d in pairs):
+        if any(
+            matcher.evaluate(p, s, d, flow.service_ranges).matched
+            for p in policies
+            for s, d in pairs
+        ):
             pkg_for_insertion = pkg
             break
     if pkg_for_insertion is None and snapshot.policies_by_package:
@@ -269,8 +320,12 @@ def _plan_firewall(
         insertion = plan_insertion(
             pkg_for_insertion,
             snapshot.policies_by_package[pkg_for_insertion],
-            matcher, flow.srcs, flow.dsts, flow.service_ranges,
-            fw.srcintf, fw.dstintf,
+            matcher,
+            flow.srcs,
+            flow.dsts,
+            flow.service_ranges,
+            fw.srcintf,
+            fw.dstintf,
         )
         if insertion.shadowed_by:
             fw.warnings.append(
@@ -315,8 +370,11 @@ def _plan_firewall(
                     _nm["match_reason"] = (
                         f"{alt.side.capitalize()} missing — "
                         + ", ".join(m.name for m in alt.members)
-                        + (" not yet in group " + alt.group if alt.group
-                           else " not yet in address list")
+                        + (
+                            " not yet in group " + alt.group
+                            if alt.group
+                            else " not yet in address list"
+                        )
                     )
                     fw.partial_matches.append(_nm)
                     break
@@ -353,7 +411,10 @@ def _dedupe_objects(objs: list[ObjectPlan]) -> list[ObjectPlan]:
 
 
 def _resolve_side_interface(
-    snapshot, members: list[str], zones: list[str], label: str,
+    snapshot,
+    members: list[str],
+    zones: list[str],
+    label: str,
     warnings: list[str],
 ) -> str:
     """One interface for a whole side. All members must resolve to the same
@@ -414,12 +475,17 @@ def _group_append_alternative(
 
     for pkg, policies in snapshot.policies_by_package.items():
         for pol in policies:
-            results = [matcher.evaluate(pol, s, d, flow.service_ranges)
-                       for s, d in flow.pairs]
+            results = [
+                matcher.evaluate(pol, s, d, flow.service_ranges) for s, d in flow.pairs
+            ]
             r = results[0]
-            if (r.disabled or r.conditional_schedule or r.action != "accept"
-                    or any(x.unknown_refs for x in results)
-                    or all(x.full_cover for x in results)):
+            if (
+                r.disabled
+                or r.conditional_schedule
+                or r.action != "accept"
+                or any(x.unknown_refs for x in results)
+                or all(x.full_cover for x in results)
+            ):
                 continue
             if not _intf_scoped(pol, fw.srcintf, fw.dstintf):
                 continue
@@ -429,12 +495,20 @@ def _group_append_alternative(
             src_fulls = {s: matcher.addr_side(pol, "srcaddr", s)[1] for s in flow.srcs}
             dst_fulls = {d: matcher.addr_side(pol, "dstaddr", d)[1] for d in flow.dsts}
             for side, key, other_key, missing, other_all_full in (
-                ("destination", "dstaddr", "srcaddr",
-                 [d for d, f in dst_fulls.items() if not f],
-                 all(src_fulls.values())),
-                ("source", "srcaddr", "dstaddr",
-                 [s for s, f in src_fulls.items() if not f],
-                 all(dst_fulls.values())),
+                (
+                    "destination",
+                    "dstaddr",
+                    "srcaddr",
+                    [d for d, f in dst_fulls.items() if not f],
+                    all(src_fulls.values()),
+                ),
+                (
+                    "source",
+                    "srcaddr",
+                    "dstaddr",
+                    [s for s, f in src_fulls.items() if not f],
+                    all(dst_fulls.values()),
+                ),
             ):
                 if not missing or not other_all_full:
                     continue
@@ -446,23 +520,33 @@ def _group_append_alternative(
                 has_specific = 1 if non_all_count > 0 else 0
 
                 group = next(
-                    (n for n in _ref_names(pol.get(key, []))
-                     if snapshot.addr_catalog.is_group(n)), None,
+                    (
+                        n
+                        for n in _ref_names(pol.get(key, []))
+                        if snapshot.addr_catalog.is_group(n)
+                    ),
+                    None,
                 )
                 members = [_address_object_plan(side, t, snapshot) for t in missing]
 
                 if group is not None:
                     score: tuple[int, int, int] = (has_specific, -non_all_count, 0)
-                    candidates.append((score, GroupAppendAlternative(
-                        package=pkg,
-                        policy_id=pol.get("policyid", 0),
-                        policy_name=pol.get("name", ""),
-                        side=side,
-                        group=group,
-                        members=members,
-                        group_cli=cli_gen.addrgrp_append_cli(
-                            group, [m.name for m in members]),
-                    )))
+                    candidates.append(
+                        (
+                            score,
+                            GroupAppendAlternative(
+                                package=pkg,
+                                policy_id=pol.get("policyid", 0),
+                                policy_name=pol.get("name", ""),
+                                side=side,
+                                group=group,
+                                members=members,
+                                group_cli=cli_gen.addrgrp_append_cli(
+                                    group, [m.name for m in members]
+                                ),
+                            ),
+                        )
+                    )
                 else:
                     # Direct-append: the failing side has concrete refs, no group.
                     # Skip if unconstrained ("all") — the rule would already match.
@@ -471,21 +555,27 @@ def _group_append_alternative(
                         continue
                     member_names = [m.name for m in members]
                     score = (has_specific, -non_all_count, 1)
-                    candidates.append((score, GroupAppendAlternative(
-                        package=pkg,
-                        policy_id=pol.get("policyid", 0),
-                        policy_name=pol.get("name", ""),
-                        side=side,
-                        group=None,
-                        members=members,
-                        direct_cli=cli_gen.policy_addr_append_cli(
-                            pol.get("policyid", 0), key, member_names),
-                        warnings=[
-                            f"Adding {', '.join(member_names)} directly to rule "
-                            f"#{pol.get('policyid', 0)} {side} address list — "
-                            "only this rule is affected."
-                        ],
-                    )))
+                    candidates.append(
+                        (
+                            score,
+                            GroupAppendAlternative(
+                                package=pkg,
+                                policy_id=pol.get("policyid", 0),
+                                policy_name=pol.get("name", ""),
+                                side=side,
+                                group=None,
+                                members=members,
+                                direct_cli=cli_gen.policy_addr_append_cli(
+                                    pol.get("policyid", 0), key, member_names
+                                ),
+                                warnings=[
+                                    f"Adding {', '.join(member_names)} directly to rule "
+                                    f"#{pol.get('policyid', 0)} {side} address list — "
+                                    "only this rule is affected."
+                                ],
+                            ),
+                        )
+                    )
 
     if not candidates:
         return None
@@ -495,7 +585,9 @@ def _group_append_alternative(
     # Compute blast radius once, only for the winning group-append candidate.
     if winner.group is not None:
         affected, scan_warnings = _group_blast_radius(
-            client, snapshot, winner.group,
+            client,
+            snapshot,
+            winner.group,
             exclude=(winner.package, winner.policy_id),
         )
         winner.affected_policies = affected
@@ -516,7 +608,10 @@ def _group_append_alternative(
 
 
 def _group_blast_radius(
-    client, snapshot, group: str, exclude: tuple[str, int],
+    client,
+    snapshot,
+    group: str,
+    exclude: tuple[str, int],
 ) -> tuple[list[dict], list[str]]:
     """Every policy in the ADOM referencing `group` directly or through a
     parent group — the set of rules whose behaviour changes on append."""
@@ -526,7 +621,8 @@ def _group_blast_radius(
 
     try:
         all_pkgs = [
-            p.get("path", p.get("name", "")) for p in client.get_policy_packages(snapshot.adom)
+            p.get("path", p.get("name", ""))
+            for p in client.get_policy_packages(snapshot.adom)
             if isinstance(p, dict)
         ]
     except FMGError as exc:
@@ -537,7 +633,8 @@ def _group_blast_radius(
         if policies is None:
             try:
                 policies = [
-                    p for p in client.get_policies(snapshot.adom, pkg)
+                    p
+                    for p in client.get_policies(snapshot.adom, pkg)
                     if isinstance(p, dict)
                 ]
             except FMGError as exc:
@@ -553,14 +650,16 @@ def _group_blast_radius(
             for key, label in (("srcaddr", "source"), ("dstaddr", "destination")):
                 via = sorted(set(_ref_names(pol.get(key, []))) & names)
                 if via:
-                    affected.append({
-                        "package": pkg,
-                        "policy_id": pid,
-                        "name": pol.get("name", ""),
-                        "side": label,
-                        "status": pol.get("status", "enable"),
-                        "via": via,
-                    })
+                    affected.append(
+                        {
+                            "package": pkg,
+                            "policy_id": pid,
+                            "name": pol.get("name", ""),
+                            "side": label,
+                            "status": pol.get("status", "enable"),
+                            "via": via,
+                        }
+                    )
     return affected, warnings
 
 
@@ -568,9 +667,15 @@ def _group_blast_radius(
 # Recommendation text (fixed templates — no free-form generation)
 # ---------------------------------------------------------------------------
 
-def _recommendation(plan_status: str, verdict: str, firewalls: list[FirewallPlan],
-                    risk: str, warnings: list[str],
-                    zone_verdict: dict | None = None) -> str:
+
+def _recommendation(
+    plan_status: str,
+    verdict: str,
+    firewalls: list[FirewallPlan],
+    risk: str,
+    warnings: list[str],
+    zone_verdict: dict | None = None,
+) -> str:
     if plan_status == "unknown_no_action":
         return (
             "Zone verdict is UNKNOWN — at least one IP did not resolve to a known "
@@ -587,13 +692,14 @@ def _recommendation(plan_status: str, verdict: str, firewalls: list[FirewallPlan
     if plan_status == "blocked_exception":
         governing = (zone_verdict or {}).get("governing", [])
         blocking_policy = next(
-            (g.get("policy_set", "") for g in governing
-             if g.get("access_type", "").startswith("block")),
+            (
+                g.get("policy_set", "")
+                for g in governing
+                if g.get("access_type", "").startswith("block")
+            ),
             None,
         )
-        block_detail = (
-            f" Blocked by: \"{blocking_policy}\"." if blocking_policy else ""
-        )
+        block_detail = f' Blocked by: "{blocking_policy}".' if blocking_policy else ""
         lines.append(
             f"Zone policy BLOCKS this flow.{block_detail} The generated CLI "
             "implements an EXCEPTION and must not be pushed until the approval "
@@ -620,6 +726,7 @@ def _recommendation(plan_status: str, verdict: str, firewalls: list[FirewallPlan
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def _norm_list(value: str | list[str], label: str) -> list[str]:
     """Accept a comma-separated string or a list; return clean tokens."""
     if isinstance(value, str):
@@ -632,7 +739,10 @@ def _norm_list(value: str | list[str], label: str) -> list[str]:
 
 
 def _consolidated_zone_verdict(
-    zc: ZoneDBAdapter, srcs: list[str], dsts: list[str], services: list[str],
+    zc: ZoneDBAdapter,
+    srcs: list[str],
+    dsts: list[str],
+    services: list[str],
 ) -> dict:
     """One aggregated verdict across every src×dst×service combination.
 
@@ -673,14 +783,16 @@ def _consolidated_zone_verdict(
     if "UNKNOWN" in verdicts:
         verdict = "UNKNOWN"
         notes.append(
-            "Verdict UNKNOWN for: " + "; ".join(verdicts["UNKNOWN"])
+            "Verdict UNKNOWN for: "
+            + "; ".join(verdicts["UNKNOWN"])
             + " — no combination may be implemented until resolved."
         )
     elif "ALLOWED" in verdicts and "BLOCKED" in verdicts:
         raise PlannerDataError(
             "request",
             "Zone policy gives mixed verdicts — ALLOWED for "
-            + "; ".join(verdicts["ALLOWED"]) + " but BLOCKED for "
+            + "; ".join(verdicts["ALLOWED"])
+            + " but BLOCKED for "
             + "; ".join(verdicts["BLOCKED"])
             + ". A single consolidated rule cannot carry both: split the "
             "request into one per verdict and re-run.",
@@ -734,11 +846,16 @@ def plan_change(
         except ValueError as exc:
             raise PlannerDataError("request", str(exc)) from exc
 
-    flow = NormalizedFlow(src=", ".join(srcs), dst=", ".join(dsts),
-                          service=", ".join(services),
-                          srcs=srcs, dsts=dsts, services=services,
-                          service_ranges=service_ranges,
-                          justification=justification)
+    flow = NormalizedFlow(
+        src=", ".join(srcs),
+        dst=", ".join(dsts),
+        service=", ".join(services),
+        srcs=srcs,
+        dsts=dsts,
+        services=services,
+        service_ranges=service_ranges,
+        justification=justification,
+    )
 
     zc = zone_client or _default_zone_client()
     zone_verdict = _consolidated_zone_verdict(zc, srcs, dsts, services)
@@ -757,7 +874,9 @@ def plan_change(
         src_domains.add("Internet")
     if "Internet" in dst_zones:
         dst_domains.add("Internet")
-    rule_type = standards.rule_type_for(verdict, src_domains, dst_domains, service_ranges)
+    rule_type = standards.rule_type_for(
+        verdict, src_domains, dst_domains, service_ranges
+    )
     log_cfg = standards.log_settings(rule_type)
     approval = standards.review_requirements(risk)
 
@@ -767,18 +886,31 @@ def plan_change(
 
     if verdict == "UNKNOWN":
         for target in firewalls:
-            fw_plans.append(FirewallPlan(
-                firewall=target.device, adom=target.adom, status="no_action",
-                warnings=["Zone verdict UNKNOWN — no analysis performed"],
-            ))
+            fw_plans.append(
+                FirewallPlan(
+                    firewall=target.device,
+                    adom=target.adom,
+                    status="no_action",
+                    warnings=["Zone verdict UNKNOWN — no analysis performed"],
+                )
+            )
         cli_status = "unknown_no_action"
     else:
         client = fmg_client or _default_fmg_client()
         for target in firewalls:
-            fw_plans.append(_plan_firewall(
-                target, flow, zone_verdict, log_cfg, ticket_id, client, warnings,
-                src_group=src_group, dst_group=dst_group,
-            ))
+            fw_plans.append(
+                _plan_firewall(
+                    target,
+                    flow,
+                    zone_verdict,
+                    log_cfg,
+                    ticket_id,
+                    client,
+                    warnings,
+                    src_group=src_group,
+                    dst_group=dst_group,
+                )
+            )
         for fw in fw_plans:
             warnings.extend(w for w in fw.warnings if w not in warnings)
 
@@ -789,8 +921,9 @@ def plan_change(
         else:
             cli_status = "new_rule"
 
-    recommendation = _recommendation(cli_status, verdict, fw_plans, risk, warnings,
-                                      zone_verdict=zone_verdict)
+    recommendation = _recommendation(
+        cli_status, verdict, fw_plans, risk, warnings, zone_verdict=zone_verdict
+    )
 
     return ChangePlan(
         ticket_id=ticket_id,
@@ -809,7 +942,9 @@ def plan_change(
 
 def _naming_section(fw_plans: list[FirewallPlan]) -> dict:
     naming_yaml = standards.load_naming()
-    conventions = naming_yaml.get("platforms", {}).get("fortigate", {}).get("conventions", {})
+    conventions = (
+        naming_yaml.get("platforms", {}).get("fortigate", {}).get("conventions", {})
+    )
     objects = []
     seen = set()
     for fw in fw_plans:
@@ -818,18 +953,23 @@ def _naming_section(fw_plans: list[FirewallPlan]) -> dict:
                 continue
             seen.add(obj.name)
             pattern = conventions.get(obj.obj_type, {}).get("pattern", "")
-            objects.append({
-                "role": obj.role,
-                "type": obj.obj_type,
-                "name": obj.name,
-                "pattern": pattern if obj.action == "create" else "(existing object — reused)",
-            })
+            objects.append(
+                {
+                    "role": obj.role,
+                    "type": obj.obj_type,
+                    "name": obj.name,
+                    "pattern": pattern
+                    if obj.action == "create"
+                    else "(existing object — reused)",
+                }
+            )
     return {"objects": objects}
 
 
 # ---------------------------------------------------------------------------
 # Report payload
 # ---------------------------------------------------------------------------
+
 
 def to_report_payload(plan: ChangePlan) -> dict:
     """Emit a report-ready dict from a ChangePlan."""
@@ -840,7 +980,9 @@ def to_report_payload(plan: ChangePlan) -> dict:
         elif fw.status == "new_rule":
             note = "No covering rule found — a new rule is required."
             if fw.partial_matches:
-                note += f" ({len(fw.partial_matches)} partially-overlapping rule(s) noted.)"
+                note += (
+                    f" ({len(fw.partial_matches)} partially-overlapping rule(s) noted.)"
+                )
         elif fw.status == "no_action":
             note = "Not analysed — zone verdict UNKNOWN."
         else:

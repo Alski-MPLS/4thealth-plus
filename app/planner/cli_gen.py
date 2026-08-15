@@ -17,13 +17,13 @@ def _quote_list(names: list[str]) -> str:
 def address_object_cli(name: str, cidr: str) -> str:
     net = ipaddress.ip_network(cidr, strict=False)
     return (
-        'config firewall address\n'
+        "config firewall address\n"
         f'    edit "{name}"\n'
-        '        set type ipmask\n'
-        f'        set subnet {net.network_address} {net.netmask}\n'
+        "        set type ipmask\n"
+        f"        set subnet {net.network_address} {net.netmask}\n"
         '        set comment "<TICKET_ID>"\n'
-        '    next\n'
-        'end'
+        "    next\n"
+        "end"
     )
 
 
@@ -32,12 +32,12 @@ def service_object_cli(name: str, proto: str, port_expr: str) -> str:
     if proto not in ("tcp", "udp", "sctp"):
         raise ValueError(f"Cannot generate a service object for protocol {proto!r}")
     return (
-        'config firewall service custom\n'
+        "config firewall service custom\n"
         f'    edit "{name}"\n'
-        f'        set {proto}-portrange {port_expr}\n'
+        f"        set {proto}-portrange {port_expr}\n"
         '        set comment "<TICKET_ID>"\n'
-        '    next\n'
-        'end'
+        "    next\n"
+        "end"
     )
 
 
@@ -96,13 +96,7 @@ def addrgrp_append_cli(group: str, member: str | list[str]) -> str:
     preserves the group's current members (unlike `set member`)."""
     members = [member] if isinstance(member, str) else list(member)
     appends = "\n".join(f'        append member "{m}"' for m in members)
-    return (
-        'config firewall addrgrp\n'
-        f'    edit "{group}"\n'
-        f'{appends}\n'
-        '    next\n'
-        'end'
-    )
+    return f'config firewall addrgrp\n    edit "{group}"\n{appends}\n    next\nend'
 
 
 def policy_addr_append_cli(policy_id: int, key: str, members: list[str]) -> str:
@@ -110,23 +104,17 @@ def policy_addr_append_cli(policy_id: int, key: str, members: list[str]) -> str:
     dstaddr list.  `append` preserves the existing entries (unlike `set`).
     `key` must be "srcaddr" or "dstaddr"."""
     appends = "\n".join(f'        append {key} "{m}"' for m in members)
-    return (
-        'config firewall policy\n'
-        f'    edit {policy_id}\n'
-        f'{appends}\n'
-        '    next\n'
-        'end'
-    )
+    return f"config firewall policy\n    edit {policy_id}\n{appends}\n    next\nend"
 
 
 def addrgrp_create_cli(name: str, members: list[str]) -> str:
     """CLI to create a new address group with the given members."""
     quoted = " ".join(f'"{m}"' for m in members)
     return (
-        'config firewall addrgrp\n'
+        "config firewall addrgrp\n"
         f'    edit "{name}"\n'
-        f'        set member {quoted}\n'
+        f"        set member {quoted}\n"
         '        set comment "<TICKET_ID>"\n'
-        '    next\n'
-        'end'
+        "    next\n"
+        "end"
     )
