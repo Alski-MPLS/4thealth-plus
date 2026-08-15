@@ -123,6 +123,12 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         init_infra_health_scheduler(app)
 
+    if not app.config.get("TESTING") and not app.config.get("_HOST_METRICS_STARTED"):
+        app.config["_HOST_METRICS_STARTED"] = True
+        from app.host_metrics import init_scheduler as init_host_metrics_scheduler
+
+        init_host_metrics_scheduler(app)
+
     if not app.config.get("TESTING") and not app.config.get(
         "_PENDING_STATUS_CACHE_STARTED"
     ):

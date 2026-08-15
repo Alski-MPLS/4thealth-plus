@@ -98,6 +98,8 @@ app/
   zone_db.py           # Zone policy DB engine — loads policy_db.json, runs queries, validates, handles CRUD
   summary_job.py       # Background job: managed firewall + rule counts; nightly APScheduler
   adom_cache.py        # Background cache: ADOM list from FortiManager, refreshed every 30 min
+  ai_usage.py           # AI Assist usage/cost tracking, SQLite-backed (ai_usage.db)
+  host_metrics.py       # Host CPU/mem/disk sampling, SQLite-backed (host_metrics.db); Admin page graphs
   groups.py            # Group management: tab permissions + ADOM access control (groups.json)
   decorators.py        # login_required, tab_required, admin_required, check_adom_access
   app_settings.py      # Persistent app settings (app_settings.json); used for external_api_enabled toggle
@@ -343,11 +345,11 @@ into a lost result.
 
 Self-contained network segmentation policy browser. No FortiManager connection required — all data comes from `policy_db.json` in the project root.
 
-Four sub-tab panels:
+Two sub-tab panels, read-only for all users:
 1. **Query Flow** — enter source/destination IPs (multi-line or comma-separated), optional service, get ALLOWED/BLOCKED/UNKNOWN verdict with governing rules
 2. **Browse** — zone accordion list (searchable, filterable) + full policy table (filterable by access type/severity)
-3. **Validate** — schema validation report with error/warning counts
-4. **Edit Database** (admin only) — add/remove/modify zones, subnets, and policy rules in-place
+
+**Validate** and **Edit Database** live under **Admin → Zone Policy** (admin only) — see the Admin tab section below. This keeps the Zone Policy tab fully read-only for every user and consolidates all `policy_db.json` write operations in Admin.
 
 Backend: `app/zone_db.py` is the single source of truth — query engine, validation, and all CRUD mutations. It writes back to `policy_db.json` atomically. Routes in `app/routes/zone_routes.py`:
 - `POST /api/zone/query` — flow query (tab_required)
@@ -387,7 +389,7 @@ Runtime data file (gitignored). Copy from a known-good source or build from scra
 
 #### Standalone production deployment
 
-4THealth+ can run standalone (without FortiManager) if only the Zone Policy tab is needed. The only requirement is `policy_db.json`. All other tabs degrade gracefully when FMG is unreachable. To deploy standalone:
+4THealth+ can run standalone (without FortiManager) if only the Zone Policy tab is needed. The only requirement is `policy_db.json`. All other tabs degrade gracefully when FMG is unreachable. To deploy standalone (an admin account is needed to reach Admin → Zone Policy for validation/editing):
 
 1. Copy `policy_db.json` to the project root
 2. Create `users.json` with at least one account (`python manage_users.py add ...`)
@@ -571,6 +573,41 @@ The "Pending only" toggle filters the device list by `conf_status`. It does not 
 - `GET  /api/pending-changes/adoms` — ADOM list (filtered by access)
 - `GET  /api/pending-changes/adoms/<adom>/devices` — device list with `conf_status`
 - `POST /api/pending-changes/adoms/<adom>/device/<device>/preview` — trigger preview, return structured diff
+
+### Admin tab
+
+`GET /admin` → `admin.html` + `admin.js` (admin only)
+
+Above the sub-tab bar, three **host resource graphs** (CPU/Memory/Disk) show
+the resource usage of the host running this app, with a range-pill selector
+(`1h/4h/12h/1d/7d/14d`). Sampled every 60s by `app/host_metrics.py`
+(`record_sample()`, mirrors `app/ai_usage.py`'s SQLite pattern) into
+`host_metrics.db` (gitignored, project root); a daily job prunes rows older
+than 90 days. `GET /admin/api/host-metrics?range=` returns time-bucketed
+`{cpu, mem, disk}` series. Charts are rendered as plain CSS/JS bar charts
+(`admin.js`, `.hm-*` CSS classes) — same hand-rolled style as the AI Usage
+chart, no charting library dependency. The Memory card shows an info-icon
+tooltip ("Reflects host memory — container memory limit may differ.") when
+`os.path.exists('/.dockerenv')` is true (passed to the template as
+`in_docker`).
+
+Sub-tabs: Groups & Permissions, Map Region Colors, External API, AI Assist,
+Scheduled, Backup, **Zone Policy**, Application Logs.
+
+**Zone Policy sub-tab** — Validate and Edit Database (zone/subnet/policy
+rule CRUD against `policy_db.json`) moved here from the Zone Policy nav tab
+so all writes to `policy_db.json` are UI-gated to admins, not just API-gated
+(see [Zone Policy tab](#zone-policy-tab)). The JS (`admin.js`, under
+`// --- Zone Policy Edit ---`) is lazy-loaded the first time the sub-tab is
+clicked and posts to the same `/api/zone/*` mutation routes as before — no
+backend changes.
+
+**Backup sub-tab** — remote transfer supports **SFTP, FTP, and SCP**
+(`app/backup_scheduler.py::transfer_file()` / `test_connection()`). SCP uses
+the `scp` PyPI package (`SCPClient`) over the same `paramiko` SSH transport
+as SFTP; default port 22, same field set as SFTP (host/port/username/
+password/remote dir) — no new form fields. The FTP-plaintext warning banner
+only shows for `protocol === 'ftp'`.
 
 ## Dependency management
 

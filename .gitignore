@@ -20,6 +20,7 @@ protocol_severity.json
 naming.yaml
 review_requirements.yaml
 ai_usage.db
+host_metrics.db
 api_tokens.json
 app_settings.json
 

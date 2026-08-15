@@ -31,12 +31,15 @@ App settings (JSON):
   GET    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
   PUT    /admin/api/settings         {"external_api_enabled": bool, "ai_assist_enabled": bool}
   GET    /admin/api/ai-usage         bucketed AI Assist call/cost history (?range= or ?start=&end=)
+  GET    /admin/api/host-metrics     bucketed host CPU/mem/disk history (?range=1h|4h|12h|1d|7d|14d)
 
 External API tokens (JSON):
   GET    /admin/api/tokens           list tokens (hashes never returned)
   POST   /admin/api/tokens           {"name": str} — create token; plaintext returned once
   DELETE /admin/api/tokens/<id>      revoke token
 """
+
+import os
 
 from flask import Blueprint, render_template, session, jsonify, request
 from app.decorators import admin_required as _admin_required
@@ -69,7 +72,10 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 def admin_page():
     app_log("DEBUG", "admin", "Admin page accessed", username=session["user"])
     return render_template(
-        "admin.html", user=session["user"], checks_meta=_DR_CHECKS_META
+        "admin.html",
+        user=session["user"],
+        checks_meta=_DR_CHECKS_META,
+        in_docker=os.path.exists("/.dockerenv"),
     )
 
 
@@ -325,6 +331,16 @@ def api_ai_usage():
     summary["start"] = start.isoformat()
     summary["end"] = end.isoformat()
     return jsonify(summary)
+
+
+@bp.route("/api/host-metrics")
+@_admin_required
+def api_host_metrics():
+    """Bucketed CPU/mem/disk history for the host running this app.
+    ?range=1h|4h|12h|1d|7d|14d (default 1h)."""
+    from app.host_metrics import get_metrics
+
+    return jsonify(get_metrics(request.args.get("range", "1h")))
 
 
 # ── External API tokens ───────────────────────────────────────────────────────

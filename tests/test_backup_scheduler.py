@@ -244,6 +244,32 @@ def test_transfer_sftp_calls_paramiko(tmp_path):
     )
 
 
+def test_transfer_scp_calls_scpclient(tmp_path):
+    import app.backup_scheduler as sched
+    fake_file = tmp_path / "SERVER-BACKUP_2026-08-10_0200.zip"
+    fake_file.write_bytes(b"data")
+
+    ftp_cfg = {"protocol": "scp", "host": "backup.example.com", "port": 22,
+               "username": "user", "password": "pass", "remote_dir": "/backups"}
+
+    with mock.patch("paramiko.SSHClient") as mock_ssh_cls, \
+         mock.patch("scp.SCPClient") as mock_scp_cls:
+        mock_ssh = mock.MagicMock()
+        mock_ssh_cls.return_value = mock_ssh
+        mock_scp = mock.MagicMock()
+        mock_scp_cls.return_value.__enter__ = lambda s: mock_scp
+        mock_scp_cls.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        sched.transfer_file(ftp_cfg, fake_file, fake_file.name)
+
+    mock_ssh.connect.assert_called_once_with(
+        "backup.example.com", port=22, username="user", password="pass", timeout=30
+    )
+    mock_scp.put.assert_called_once_with(
+        str(fake_file), "/backups/SERVER-BACKUP_2026-08-10_0200.zip"
+    )
+
+
 def test_transfer_ftp_calls_ftplib(tmp_path):
     import app.backup_scheduler as sched
     fake_file = tmp_path / "SERVER-BACKUP_2026-08-10_0200.zip"

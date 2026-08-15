@@ -15,6 +15,7 @@
       if (btn.dataset.panel === 'ai-assist' && !_aiAssistLoaded) loadAiAssist();
       if (btn.dataset.panel === 'scheduled') { loadSMTP(); loadJobs(); loadDRJobs(); }
       if (btn.dataset.panel === 'backup') { window.loadBackupConfig(); window.loadBackupJobs(); }
+      if (btn.dataset.panel === 'zone-policy' && !_zonePolicyLoaded) loadZonePolicyEdit();
     });
   });
 
@@ -834,6 +835,287 @@
   }
 
 
+  // ══════════════════════  HOST METRICS CHARTS  ══════════════════════════════
+
+  const HM_CHARTS = [
+    { key: 'cpu',  el: 'hmCpuChart' },
+    { key: 'mem',  el: 'hmMemChart' },
+    { key: 'disk', el: 'hmDiskChart' },
+  ];
+
+  function hmAxisLabel(ts, showDate) {
+    const d = new Date(ts * 1000);
+    return showDate
+      ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderHmChart(el, series, showDate) {
+    if (!series.length) {
+      el.innerHTML = '<div class="text-muted" style="padding:1rem 0">No data yet.</div>';
+      return;
+    }
+    const bars = series.map(p => {
+      const v = p.v == null ? 0 : Math.max(0, Math.min(100, p.v));
+      const title = `${hmAxisLabel(p.ts, true)}: ${p.v == null ? '—' : v.toFixed(1) + '%'}`;
+      return `<div class="hm-bar-wrap" title="${esc(title)}">
+        <div class="hm-bar" style="height:${v}%"></div>
+      </div>`;
+    }).join('');
+
+    const tickIdxs = [...new Set([0, 0.25, 0.5, 0.75, 1].map(f =>
+      Math.min(series.length - 1, Math.round(f * (series.length - 1)))
+    ))];
+    const axis = series.map((p, i) =>
+      `<div class="hm-tick">${tickIdxs.includes(i) ? esc(hmAxisLabel(p.ts, showDate)) : ''}</div>`
+    ).join('');
+
+    el.innerHTML = `<div class="hm-bars">${bars}</div><div class="hm-axis">${axis}</div>`;
+  }
+
+  async function loadHostMetrics(range) {
+    document.querySelectorAll('.hm-range-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.range === range));
+
+    const res = await fetch('/admin/api/host-metrics?range=' + encodeURIComponent(range));
+    if (!res.ok) return;
+    const data = await res.json();
+    const showDate = range === '7d' || range === '14d';
+    HM_CHARTS.forEach(({ key, el }) => {
+      renderHmChart(document.getElementById(el), data[key] || [], showDate);
+    });
+  }
+
+  document.querySelectorAll('.hm-range-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadHostMetrics(btn.dataset.range));
+  });
+
+  loadHostMetrics('1h');
+  setInterval(() => {
+    const active = document.querySelector('.hm-range-btn.active');
+    loadHostMetrics(active ? active.dataset.range : '1h');
+  }, 60000);
+
+  // ══════════════════════  ZONE POLICY (Validate + Edit)  ════════════════════
+
+  let _zonePolicyLoaded = false;
+
+  function loadZonePolicyEdit() {
+    _zonePolicyLoaded = true;
+    loadZoneEditDropdowns();
+  }
+
+  document.getElementById('zpValidateBtn').addEventListener('click', async () => {
+    document.getElementById('zpValidateResult').style.display = 'none';
+    document.getElementById('zpValidateError').style.display  = 'none';
+    document.getElementById('zpValidateRunning').style.display = '';
+    document.getElementById('zpValidateBtn').disabled          = true;
+
+    try {
+      const resp = await fetch('/api/zone/validate');
+      const data = await resp.json();
+      if (!resp.ok || data.error) {
+        const el = document.getElementById('zpValidateError');
+        el.textContent = data.error || 'Validation failed.'; el.style.display = '';
+        return;
+      }
+      renderZpValidateReport(data);
+      document.getElementById('zpValidateResult').style.display = '';
+    } catch (e) {
+      const el = document.getElementById('zpValidateError');
+      el.textContent = e.message; el.style.display = '';
+    } finally {
+      document.getElementById('zpValidateRunning').style.display = 'none';
+      document.getElementById('zpValidateBtn').disabled          = false;
+    }
+  });
+
+  function renderZpValidateReport(r) {
+    const badge = document.getElementById('zpValidateBadge');
+    badge.textContent = r.ok ? '✓ VALID' : '✗ INVALID';
+    badge.className   = `zp-validate-badge ${r.ok ? 'zp-valid' : 'zp-invalid'}`;
+    badge.title       = `${r.zone_count} zones · ${r.subnet_count} subnets · ${r.policy_count} policies`;
+
+    const statsLine = document.createElement('div');
+    statsLine.style.cssText = 'font-size:.82rem;color:var(--text-muted);margin-top:.35rem';
+    statsLine.textContent   = `${r.zone_count} zones · ${r.subnet_count} subnets · ${r.policy_count} policy rules`;
+    badge.after(statsLine);
+
+    const errEl  = document.getElementById('zpValidateErrors');
+    const warnEl = document.getElementById('zpValidateWarnings');
+
+    errEl.innerHTML = r.errors.length
+      ? `<div style="font-weight:600;color:var(--danger);margin-bottom:.3rem">Errors (${r.errors.length})</div>` +
+        r.errors.map(e => `<div class="zp-issue zp-issue-error">&#10007; ${esc(e)}</div>`).join('')
+      : `<div class="zp-issue zp-issue-ok">&#10003; No errors</div>`;
+
+    warnEl.innerHTML = r.warnings.length
+      ? `<div style="font-weight:600;color:var(--warning);margin-bottom:.3rem;margin-top:.5rem">Warnings (${r.warnings.length})</div>` +
+        r.warnings.map(w => `<div class="zp-issue zp-issue-warn">&#9888; ${esc(w)}</div>`).join('')
+      : '';
+  }
+
+  function zpFlash(msg, ok) {
+    const el = document.getElementById('zpEditFlash');
+    if (!el) return;
+    el.textContent  = msg;
+    el.className    = `alert ${ok ? 'alert-success' : 'alert-danger'}`;
+    el.style.display = '';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = 'none'; }, 6000);
+  }
+
+  async function zpEditPost(url, body) {
+    const resp = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    return resp.json();
+  }
+
+  async function loadZoneEditDropdowns() {
+    try {
+      const r = await fetch('/api/zone/zones').then(x => x.json());
+      const zones = (r.zones || []).map(z => z.name).sort();
+      ['ezZoneRemoveSel','ezZoneModSel','ezSubnetZoneSel','ezSubnetRemZone',
+       'epFromZone','epToZone'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— select zone —</option>' +
+          zones.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      });
+    } catch (_) {}
+  }
+
+  function zpReloadAfterEdit() {
+    loadZoneEditDropdowns();
+  }
+
+  document.getElementById('zpBackupBtn').addEventListener('click', async () => {
+    const btn    = document.getElementById('zpBackupBtn');
+    const status = document.getElementById('zpBackupStatus');
+    btn.disabled = true;
+    status.textContent = 'Backing up…';
+    try {
+      const resp = await fetch('/api/zone/backup', { method: 'POST' });
+      const data = await resp.json();
+      if (data.ok) {
+        status.textContent = `Saved: ${data.filename}`;
+        status.style.color = 'var(--success)';
+      } else {
+        status.textContent = data.error || 'Backup failed.';
+        status.style.color = 'var(--danger)';
+      }
+    } catch (e) {
+      status.textContent = e.message;
+      status.style.color = 'var(--danger)';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('ezZoneAddBtn').addEventListener('click', async () => {
+    const name = document.getElementById('ezZoneName').value.trim();
+    if (!name) { zpFlash('Zone name is required.', false); return; }
+    const r = await zpEditPost('/api/zone/zone/add', {
+      name,
+      domain:      document.getElementById('ezZoneDomain').value.trim() || 'Default',
+      description: document.getElementById('ezZoneDesc').value.trim(),
+      is_shared:   document.getElementById('ezZoneShared').checked,
+    });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) {
+      ['ezZoneName','ezZoneDomain','ezZoneDesc'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('ezZoneShared').checked = false;
+      zpReloadAfterEdit();
+    }
+  });
+
+  document.getElementById('ezZoneRemoveBtn').addEventListener('click', async () => {
+    const name = document.getElementById('ezZoneRemoveSel').value;
+    if (!name) { zpFlash('Select a zone first.', false); return; }
+    if (!confirm(`Remove zone "${name}"? This cannot be undone.`)) return;
+    const r = await zpEditPost('/api/zone/zone/remove', { name });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) zpReloadAfterEdit();
+  });
+
+  document.getElementById('ezZoneModBtn').addEventListener('click', async () => {
+    const name  = document.getElementById('ezZoneModSel').value;
+    const field = document.getElementById('ezZoneModField').value;
+    const value = document.getElementById('ezZoneModVal').value.trim();
+    if (!name || !value) { zpFlash('Select a zone and enter a value.', false); return; }
+    const r = await zpEditPost('/api/zone/zone/modify', { name, field, value });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) { document.getElementById('ezZoneModVal').value = ''; zpReloadAfterEdit(); }
+  });
+
+  document.getElementById('ezSubnetAddBtn').addEventListener('click', async () => {
+    const zone   = document.getElementById('ezSubnetZoneSel').value;
+    const subnet = document.getElementById('ezSubnet').value.trim();
+    if (!zone || !subnet) { zpFlash('Select a zone and enter a subnet.', false); return; }
+    const r = await zpEditPost('/api/zone/subnet/add', {
+      zone, subnet, description: document.getElementById('ezSubnetDesc').value.trim(),
+    });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) {
+      ['ezSubnet','ezSubnetDesc'].forEach(id => { document.getElementById(id).value = ''; });
+      zpReloadAfterEdit();
+    }
+  });
+
+  document.getElementById('ezSubnetRemBtn').addEventListener('click', async () => {
+    const zone   = document.getElementById('ezSubnetRemZone').value;
+    const subnet = document.getElementById('ezSubnetRemVal').value.trim();
+    if (!zone || !subnet) { zpFlash('Select a zone and enter the subnet.', false); return; }
+    const r = await zpEditPost('/api/zone/subnet/remove', { zone, subnet });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) { document.getElementById('ezSubnetRemVal').value = ''; zpReloadAfterEdit(); }
+  });
+
+  document.getElementById('epAddBtn').addEventListener('click', async () => {
+    const body = {
+      policy_set:  document.getElementById('epPolSet').value.trim(),
+      from_zone:   document.getElementById('epFromZone').value,
+      to_zone:     document.getElementById('epToZone').value,
+      access_type: document.getElementById('epAccessType').value,
+      severity:    document.getElementById('epSeverity').value,
+      services:    document.getElementById('epServices').value.trim(),
+      description: document.getElementById('epDesc').value.trim(),
+    };
+    if (!body.policy_set || !body.from_zone || !body.to_zone) {
+      zpFlash('Policy set, from zone, and to zone are required.', false); return;
+    }
+    const r = await zpEditPost('/api/zone/policy/add', body);
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) {
+      ['epPolSet','epServices','epDesc'].forEach(id => { document.getElementById(id).value = ''; });
+      zpReloadAfterEdit();
+    }
+  });
+
+  document.getElementById('epModBtn').addEventListener('click', async () => {
+    const idx   = parseInt(document.getElementById('epModIdx').value, 10);
+    const field = document.getElementById('epModField').value;
+    const value = document.getElementById('epModVal').value.trim();
+    if (isNaN(idx) || !field || !value) {
+      zpFlash('Index, field, and value are required.', false); return;
+    }
+    const r = await zpEditPost('/api/zone/policy/modify', { index: idx, field, value });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) { document.getElementById('epModVal').value = ''; zpReloadAfterEdit(); }
+  });
+
+  document.getElementById('epRemBtn').addEventListener('click', async () => {
+    const idx = parseInt(document.getElementById('epModIdx').value, 10);
+    if (isNaN(idx)) { zpFlash('Enter a policy index first.', false); return; }
+    if (!confirm(`Remove policy rule #${idx}? This cannot be undone.`)) return;
+    const r = await zpEditPost('/api/zone/policy/remove', { index: idx });
+    zpFlash(r.ok ? r.message : r.error, r.ok);
+    if (r.ok) { document.getElementById('epModIdx').value = ''; zpReloadAfterEdit(); }
+  });
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   loadGroups();
 })();
@@ -1308,7 +1590,7 @@ async function runDRJobNow(id) {
     if (warn) warn.style.display = proto === 'ftp' ? '' : 'none';
     const portEl = document.getElementById('backupFtpPort');
     if (portEl && !portEl.dataset.manuallySet) {
-      portEl.value = proto === 'sftp' ? 22 : 21;
+      portEl.value = (proto === 'sftp' || proto === 'scp') ? 22 : 21;
     }
   }
 
