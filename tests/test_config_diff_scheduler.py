@@ -174,3 +174,67 @@ def test_build_attachment_csv_has_metadata_header(jobs_path):
 
     assert "Corp" in text
     assert "2026-07-24" in text
+
+
+def test_execute_job_includes_ai_narrative_when_enabled(jobs_path, monkeypatch):
+    import app.config_diff_scheduler as sched
+
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+
+    fake_results = [
+        {"device": "fw-01", "ip": "10.0.0.1", "status": "ok", "pkg_status": "modified",
+         "summary": {"firewall_policy": 1}, "vdoms": [{"name": "root", "changes": [
+             {"type": "add", "line": "edit 1"}]}], "raw": "edit 1", "error": None},
+    ]
+
+    sent = {}
+    monkeypatch.setattr(
+        "app.routes.pending_changes_routes.bulk_preview_adom",
+        lambda adom, max_workers=1: fake_results,
+    )
+    monkeypatch.setattr(
+        "app.smtp_client.send_email",
+        lambda to, subject, body_html, attachments: sent.update(
+            {"body": body_html, "attachments": attachments}),
+    )
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+    monkeypatch.setattr(
+        "app.pending_changes_ai.build_diff_narrative",
+        lambda adom, devices: "Adds one firewall policy on fw-01.",
+    )
+
+    sched._execute_job(job["id"])
+
+    assert "Adds one firewall policy on fw-01." in sent["body"]
+
+
+def test_execute_job_narrative_failure_still_sends_email(jobs_path, monkeypatch):
+    import app.config_diff_scheduler as sched
+
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [{"device": "fw-01", "ip": "", "status": "no_changes", "pkg_status": "",
+                      "summary": {}, "vdoms": [], "raw": "", "error": None}]
+    sent = {}
+    monkeypatch.setattr(
+        "app.routes.pending_changes_routes.bulk_preview_adom",
+        lambda adom, max_workers=1: fake_results,
+    )
+    monkeypatch.setattr(
+        "app.smtp_client.send_email",
+        lambda to, subject, body_html, attachments: sent.update({"body": body_html}),
+    )
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+    monkeypatch.setattr(
+        "app.pending_changes_ai.build_diff_narrative",
+        lambda adom, devices: (_ for _ in ()).throw(RuntimeError("API down")),
+    )
+
+    sched._execute_job(job["id"])  # must not raise
+
+    assert sent["body"]
