@@ -87,6 +87,22 @@ def test_compute_trend_falling_series_no_threshold_projection():
     assert trend["days_to_threshold"] is None
 
 
+def test_compute_trend_at_or_above_threshold_returns_zero_days():
+    """Regression test: a series already at/above the threshold should
+    report days_to_threshold == 0.0, not None, so it's distinguishable
+    from a healthy/falling series."""
+    from app.host_metrics_ai import compute_trend
+
+    series = [
+        {"ts": 0, "v": 85.0},
+        {"ts": 86400, "v": 92.0},
+    ]
+    trend = compute_trend(series, threshold=90.0)
+
+    assert trend["end"] == 92.0
+    assert trend["days_to_threshold"] == 0.0
+
+
 def test_build_trend_narrative_calls_provider():
     from app.host_metrics_ai import build_trend_narrative
 

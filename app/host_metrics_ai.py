@@ -19,8 +19,9 @@ def compute_trend(series: list[dict], threshold: float = 90.0) -> dict:
 
     All fields are None when fewer than 2 non-null points are available.
     slope_per_day is 0.0 for a flat series, negative for a falling series;
-    days_to_threshold is None whenever slope_per_day <= 0 or the series is
-    already at/above the threshold.
+    days_to_threshold is 0.0 when the series is already at/above the
+    threshold, a projected day count when rising toward it, and None when
+    flat or falling and still below the threshold.
     """
     points = [(p["ts"], p["v"]) for p in series if p.get("v") is not None]
     if len(points) < 2:
@@ -37,7 +38,9 @@ def compute_trend(series: list[dict], threshold: float = 90.0) -> dict:
     slope_per_day = (end_v - start_v) / span_days if span_days > 0 else 0.0
 
     days_to_threshold = None
-    if slope_per_day > 0 and end_v < threshold:
+    if end_v >= threshold:
+        days_to_threshold = 0.0
+    elif slope_per_day > 0:
         days_to_threshold = round((threshold - end_v) / slope_per_day, 1)
 
     return {
