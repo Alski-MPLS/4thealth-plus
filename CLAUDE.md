@@ -463,6 +463,13 @@ Table rows show a single compact badge (highest-priority state). The diff panel 
 - `GET /api/pending-changes/adoms` — ADOM list (forti-prefix filtered, ADOM-access filtered)
 - `GET /api/pending-changes/adoms/<adom>/devices` — device list with status fields
 - `POST /api/pending-changes/adoms/<adom>/device/<device>/preview` — trigger + return parsed diff
+- `GET  /api/pending-changes/ai-summary-status` — reports whether AI Summary is available (reads the `ai_assist_enabled` app-settings flag)
+- `POST /api/pending-changes/adoms/<adom>/device/<device>/ai-summary` — body: `{ summary, vdoms }` — the parsed diff already held in memory from the preview task result; narrates it via `app/pending_changes_ai.py`; returns `{ narrative, narrative_error }`, never a 500 (400 if `vdoms` is missing or not a list)
+
+AI Summary ("Summarize with AI" on the Config-Delta diff panel) reuses the
+same `ai_assist_enabled` app-settings flag as Rule Validation's AI Assist,
+Device Review's AI Summary, and Rule Hygiene's AI Explain (Admin → AI
+Assist) — there is no separate Config-Delta toggle.
 
 ### Scheduled Exports
 

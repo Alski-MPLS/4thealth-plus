@@ -19,6 +19,15 @@ API (JSON, all read-only):
        returns: {status: "running"|"done"|"error", step: str, result: dict|null, error: str|null}
        Task entries are evicted after 10 minutes.
 
+  GET  /api/pending-changes/ai-summary-status
+       returns: {available: bool} — reuses the ai_assist_enabled setting
+
+  POST /api/pending-changes/adoms/<adom>/device/<device>/ai-summary
+       body: {summary: dict, vdoms: list} — the parsed diff already held in
+       memory from the preview task result
+       returns: {narrative: str|null, narrative_error: str|null}
+       503 if AI Assist is disabled, 400 if vdoms is missing or not a list
+
 Task state is stored as per-task JSON files under a shared temp directory so
 all gunicorn workers see the same state regardless of which worker handles the
 POST vs the polling GETs.
@@ -35,7 +44,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from flask import Blueprint, render_template, session, jsonify
+from flask import Blueprint, render_template, session, jsonify, request
 
 from app import registry
 from app.decorators import tab_required, check_adom_access
@@ -386,6 +395,54 @@ def pending_changes_preview(adom: str, device: str):
     t = threading.Thread(target=_run, name=f"preview_{task_id[:8]}", daemon=True)
     t.start()
     return jsonify({"task_id": task_id})
+
+
+# ── AI Summary ─────────────────────────────────────────────────────────────
+
+
+@bp.route("/api/pending-changes/ai-summary-status")
+@tab_required("pending_changes")
+def pc_ai_summary_status():
+    from app.app_settings import get_setting
+
+    return jsonify({"available": get_setting("ai_assist_enabled", False)})
+
+
+@bp.route(
+    "/api/pending-changes/adoms/<adom>/device/<device>/ai-summary", methods=["POST"]
+)
+@tab_required("pending_changes")
+def pc_ai_summary(adom: str, device: str):
+    """Narrate an already-parsed install-preview diff for one device. The LLM
+    never alters a diff line — it only summarizes what parse_preview_diff()
+    already produced. Best-effort: any failure degrades to narrative=None."""
+    if err := check_adom_access(adom):
+        return err
+
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    data = request.get_json(silent=True) or {}
+    vdoms = data.get("vdoms")
+    if not vdoms:
+        return jsonify({"error": "vdoms is required"}), 400
+    if not isinstance(vdoms, list):
+        return jsonify({"error": "vdoms must be a list"}), 400
+
+    from app.pending_changes_ai import build_diff_narrative
+
+    devices = [{"device": device, "summary": data.get("summary", {}), "vdoms": vdoms}]
+
+    narrative = None
+    narrative_error = None
+    try:
+        narrative = build_diff_narrative(adom, devices)
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify({"narrative": narrative, "narrative_error": narrative_error})
 
 
 @bp.route("/api/pending-changes/task/<task_id>")
