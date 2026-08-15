@@ -39,7 +39,7 @@ AI-assisted change analysis to the Rule Validation tab (see Roadmap below).
 | **Device Versions** | Per-ADOM version distribution chart — clickable bars filter the device list; CSV and JSON export |
 | **Rule Review** | Policy viewer (full rule table with search, pagination, group expansion, export) plus six automated hygiene checks |
 | **Device Review** | Management-interface security audit — checks for cleartext protocols, missing secure alternatives; export as CSV, JSON, or PDF |
-| **Rule Validation** | Pre-change analysis — enter requested flows, select policy packages, get per-flow verdicts; integrates zone segmentation policy checks |
+| **Rule Validation** | Pre-change analysis — enter requested flows, select policy packages, get per-flow verdicts; integrates zone segmentation policy checks; optional single-request **AI Assist** mode |
 | **Zone Policy** | Self-contained network segmentation policy browser — query flows, browse zones and rules, validate schema, edit database (admin only) |
 | **Map** | Interactive geographic map of all managed FortiGate devices, coloured by configurable US geographic region |
 | **Config-Delta** | Per-device install-pending diff viewer — shows exactly which FortiOS CLI lines will change on the next install; export queue for CSV, JSON, or PDF change records |
@@ -50,15 +50,19 @@ AI-assisted change analysis to the Rule Validation tab (see Roadmap below).
 
 ---
 
-## Roadmap
+## AI Assist
 
-4THealth+'s **Rule Validation** tab now includes an **AI Assist** mode: engineers
-describe a single change request (source/destination/service/target firewalls)
-and get a deterministic verdict — computed by a ported, tested change-planning
-engine, not the LLM — plus an AI-written report and peer-review package.
-Multi-provider support: Claude (default), Codex, and Ollama (local or cloud),
-configured server-wide via `.env`. The existing bulk CSV/XLSX table workflow is
-unchanged and does not use the LLM.
+Every AI feature in the app is gated by one `ai_assist_enabled` flag (**Admin → AI Assist**), off by default, and multi-provider — Claude (default), Codex, and Ollama (local or cloud), configured server-wide via `.env`. In every case the LLM only narrates an already-computed result; it never determines a verdict, a check outcome, or a trend itself:
+
+- **Rule Validation → AI Assist** — single-request change analysis: describe a change, get a deterministic verdict from the ported change-planning engine plus an AI-written report and peer-review package. The existing bulk CSV/XLSX table workflow is unchanged and does not use the LLM.
+- **Device Review → AI Summary** — plain-English summary of a CIS check run, on-demand or in scheduled reports.
+- **Config-Delta → AI Summary** — plain-English description of an install-preview diff, on-demand or in scheduled exports.
+- **Rule Hygiene → AI Explain** — per-finding explanation plus a suggested remediation snippet.
+- **Admin → AI Trend Summary** — narrated 7-day host-resource trend statistics.
+
+See [docs/features.md](docs/features.md) for details on each, and [docs/configuration.md](docs/configuration.md#ai-assist-optional) for the provider environment variables.
+
+## Roadmap
 
 Deferred to a future phase: FortiManager read-only query tools, feedback/audit
 history, `.xlsx` intake parsing, and per-request provider selection.

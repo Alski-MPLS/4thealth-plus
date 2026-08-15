@@ -12,7 +12,7 @@ brew install uv
 
 # Clone and install dependencies
 git clone <repo-url>
-cd 4thealth
+cd 4thealth-plus
 uv sync
 
 # Copy and configure the environment
@@ -45,13 +45,14 @@ for the full setup walkthrough, including optional HTTPS configuration.
 uv run pytest
 
 # Run linter
-uv run flake8
+uv run ruff check app/ wsgi.py manage_users.py
+uv run ruff format --check app/ wsgi.py manage_users.py
 ```
 
 ## Pull request checklist
 
 - [ ] Tests pass (`pytest`)
-- [ ] Linting passes (`flake8`)
+- [ ] Linting passes (`ruff check` and `ruff format --check`)
 - [ ] README or docs updated if the change affects user-visible behaviour
 - [ ] Security considerations addressed (no credentials committed, no new attack surface introduced)
 

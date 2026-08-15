@@ -25,6 +25,9 @@ services:
       - ./summary_history.json:/app/summary_history.json:rw
       - ./certs:/app/certs:ro
     healthcheck:
+      # Unverified TLS context is intentional here: this probes the app's own
+      # self-signed localhost cert from inside the container, not a remote
+      # endpoint — there's no real certificate authority to validate against.
       test:
         - CMD
         - python3

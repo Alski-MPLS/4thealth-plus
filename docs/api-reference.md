@@ -24,6 +24,8 @@ All endpoints require an authenticated session (HTTP 401 otherwise).
 | GET | `/api/hygiene/adoms/<adom>/packages` | List policy packages in an ADOM |
 | POST | `/api/hygiene/policies` | Fetch policy rules for a package |
 | POST | `/api/hygiene/run` | Run selected hygiene checks against a package |
+| GET | `/api/hygiene/ai-explain-status` | Is AI Explain available (`ai_assist_enabled`)? |
+| POST | `/api/hygiene/explain-finding` | Explain one hygiene finding; body is the finding object itself; returns `{narrative, narrative_error}`, never a 500 |
 
 ## Device Review
 
@@ -31,6 +33,8 @@ All endpoints require an authenticated session (HTTP 401 otherwise).
 |---|---|---|
 | GET | `/api/device-review/adoms/<adom>/devices` | List devices in an ADOM for the Device Review tab |
 | POST | `/api/device-review/run` | Run selected security checks against chosen devices |
+| GET | `/api/device-review/ai-summary-status` | Is AI Summary available (`ai_assist_enabled`)? |
+| POST | `/api/device-review/ai-summary` | Summarize an already-computed run; body: `{adom, results, checks}`; returns `{narrative, narrative_error}` |
 
 ## Rule Validation
 
@@ -41,6 +45,8 @@ All endpoints require an authenticated session (HTTP 401 otherwise).
 | POST | `/api/rule-review/parse-import` | Parse an uploaded CSV or XLSX file into flow rows |
 | GET | `/api/rule-review/zone-status` | Check whether the zone policy integration is reachable |
 | POST | `/api/rule-review/analyze` | Analyze flows against selected policy packages |
+| GET | `/api/rule-review/ai-assist-status` | Is AI Assist available (`ai_assist_enabled`)? |
+| POST | `/api/rule-review/ai-assist` | Single-request AI Assist: deterministic plan + AI narrative + peer-review package |
 
 ## Zone Policy
 
@@ -58,6 +64,8 @@ All endpoints require an authenticated session (HTTP 401 otherwise).
 | GET | `/api/pending-changes/adoms` | List ADOMs accessible to the current user |
 | GET | `/api/pending-changes/adoms/<adom>/devices` | Device list with `conf_status`, `db_status`, and `pkg_status` |
 | POST | `/api/pending-changes/adoms/<adom>/device/<device>/preview` | Trigger FortiManager install-preview and return parsed CLI diff |
+| GET | `/api/pending-changes/ai-summary-status` | Is AI Summary available (`ai_assist_enabled`)? |
+| POST | `/api/pending-changes/adoms/<adom>/device/<device>/ai-summary` | Summarize a parsed diff; body: `{summary, vdoms}`; returns `{narrative, narrative_error}` |
 
 ### Admin — SMTP Config
 
@@ -103,8 +111,11 @@ All endpoints require an authenticated session (HTTP 401 otherwise).
 | GET | `/admin/api/logs` | Fetch log entries (filter by level and component) |
 | POST | `/admin/api/logs/level` | Change the active log capture level at runtime |
 | DELETE | `/admin/api/logs` | Clear the in-memory log buffer |
-| GET | `/admin/api/settings` | Get app feature flags (e.g. `external_api_enabled`) |
+| GET | `/admin/api/settings` | Get app feature flags (e.g. `external_api_enabled`, `ai_assist_enabled`) |
 | PUT | `/admin/api/settings` | Update app feature flags |
+| GET | `/admin/api/host-metrics?range=` | Bucketed host CPU/mem/disk history (`1h\|4h\|12h\|1d\|7d\|14d`) |
+| GET | `/admin/api/host-metrics/ai-summary` | Deterministic 7-day trend stats plus AI narrative; returns `{trends, narrative, narrative_error}` |
+| GET | `/admin/api/ai-usage` | Bucketed AI Assist call/cost history (`?range=` or `?start=&end=`) |
 | GET | `/admin/api/tokens` | List external API bearer tokens |
 | POST | `/admin/api/tokens` | Create a new bearer token (plaintext returned once) |
 | DELETE | `/admin/api/tokens/<id>` | Revoke a bearer token |

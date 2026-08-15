@@ -49,6 +49,10 @@ Two sections on a single page: a full **Policy Rules** viewer and a **Hygiene An
 | `expired` | Expired Rules | Rules referencing a time-based schedule whose end-date has passed |
 | `unhit` | Unused / Un-Hit Rules | Rules where the hit counter is 0 |
 
+### AI Explain
+
+*Admin-gated (`ai_assist_enabled` in Admin → AI Assist).* Each finding row can be expanded to reveal an **Explain** button. One click sends that single finding (never the whole result set) to the configured LLM, which returns a plain-English explanation of why it matters plus a suggested FortiOS CLI remediation snippet — the LLM never runs or overrides a check, and the snippet is a suggestion for a human reviewer, not something the app applies automatically.
+
 ---
 
 ## Device Review
@@ -77,6 +81,10 @@ Runs configurable security checks against the management-plane interfaces of eve
 **Protocol Severity Override:** Protocol classifications (secure/insecure/informational) can be customised without code changes. Copy `protocol_severity.example.json` to `protocol_severity.json` at the project root and edit values. Valid values: `secure`, `insecure`, `info`, `null`. Changes take effect on app restart. Interfaces with only informational protocols (e.g. `ping`, `fgfm`) report **INFO**. The **WARN** result is effectively unused for Interface Protocols — unknown protocols default to `None` (informational), so WARN is unreachable in practice.
 
 **CIS Host Checks (NTP, Syslog, FortiAnalyzer, DNS):** These checks return **WARN** (amber) when the service is active but the configured servers do not exactly match the expected addresses. **FAIL** is reserved for when the service is completely disabled or unconfigured. IP addresses and FQDNs are both matched via DNS resolution.
+
+### AI Summary
+
+*Admin-gated (`ai_assist_enabled` in Admin → AI Assist).* After running an analysis, a **Summarize with AI** button generates a short plain-English summary of the results — overall posture and which devices/checks need attention first — from the aggregated check counts plus the FAIL/INSECURE findings (capped, never the full per-interface result set). The same summary is generated automatically (best-effort) for scheduled Device Review email/PDF reports when the flag is enabled.
 
 ### Adding a New Check
 
@@ -157,6 +165,10 @@ Admins can configure weekly scheduled Config-Delta exports in **Admin → Config
 
 Device Review scheduled reports include a **Host Summary** table at the top of both the email body and the attached file, showing per-device counts for each result type (PASS, FAIL, INSECURE, WARN, CONFIG_MISSING, INFO, Total). The existing per-check aggregate summary remains in the email body below the host summary.
 
+### AI Summary
+
+*Admin-gated (`ai_assist_enabled` in Admin → AI Assist).* A **Summarize with AI** button in the diff panel generates a short plain-English description of what's actually changing (new/removed policies, address or service object changes, routing changes) from the parsed CLI diff — capped per device and per line count to keep the LLM payload bounded. The raw CLI diff is always shown/exported unmodified alongside the summary. Scheduled export emails include the same summary automatically (best-effort — silently omitted if narration fails or the ADOM has no changes to summarize).
+
 ---
 
 ## Rule Validation
@@ -202,6 +214,10 @@ When zone policy is configured, Rule Validation calls the zone policy API to che
 ### Path Analysis
 
 For each flow the engine fetches live routing table and interface data from FortiManager, then checks whether the source and destination IPs resolve to different interfaces on the selected device. A **⚠ Not In Path** result means the traffic likely routes through a different firewall.
+
+### AI Assist
+
+*Admin-gated (`ai_assist_enabled` in Admin → AI Assist).* Alongside the bulk CSV/XLSX table workflow above, **AI Assist** is a single-request mode: describe one change (source/destination/service/target firewalls, plus an optional ticket ID and justification) and get back a deterministic verdict — computed by the same ported, tested change-planning engine (`app/planner/`), never by the LLM — an AI-written narrative report, and a peer-review package. Multi-provider: Claude (default), Codex, or Ollama, selected server-wide via `AI_PROVIDER` in `.env`. If narration fails, the deterministic plan is still returned with a `narrative_error` note rather than a lost result.
 
 ---
 
@@ -364,6 +380,22 @@ The **Admin → Application Logs** tab shows the in-memory log buffer in real ti
 - The buffer holds up to **2,000 entries** and is reset on process restart.
 - Use the level and component filters to narrow results.
 - The **Set** button changes the capture level at runtime — no restart required.
+
+---
+
+## Admin
+
+*(admin only)* Sub-tabs: Groups & Permissions, Map Region Colors, External API, AI Assist, Scheduled, Backup, Zone Policy, Application Logs.
+
+Above the sub-tab bar, three **host resource graphs** (CPU/Memory/Disk) show the resource usage of the host running the app, with a range selector (1h/4h/12h/1d/7d/14d), sampled every 60 seconds.
+
+### AI Assist Toggle
+
+A single `ai_assist_enabled` flag gates every AI feature in the app — Rule Validation's AI Assist, Device Review's AI Summary, Config-Delta's AI Summary, Rule Hygiene's AI Explain, and the Admin AI Trend Summary below. Toggle it in **Admin → AI Assist**, which also shows an AI usage/cost chart (calls, tokens, estimated cost) sourced from every LLM call the app has made.
+
+### AI Trend Summary
+
+*Admin-gated (`ai_assist_enabled`).* A **Generate AI Trend Summary** button above the host resource graphs computes 7-day trend statistics deterministically (percent change, slope per day, a days-to-threshold projection) for CPU/Memory/Disk, then has the LLM phrase a short readable summary of what needs attention — the LLM only explains numbers already computed, it never detects a trend itself.
 
 ---
 

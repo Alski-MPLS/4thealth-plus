@@ -62,6 +62,7 @@ memory/
 # Local planning notes (not for repo)
 todo-cis.md
 todo.md
+plan.md
 
 # Graphify build outputs
 graphify-out/

@@ -72,6 +72,21 @@ Copy `.env.example` to `.env` and fill in your values. The file is gitignored �
 | `AD_GROUP_VIEWER` | — | Full DN of viewer group |
 | `AD_VERIFY_SSL` | `false` | Validate DC TLS certificate |
 
+### AI Assist (optional)
+
+Powers Rule Validation's AI Assist, Device Review's AI Summary, Config-Delta's AI Summary, Rule Hygiene's AI Explain, and the Admin AI Trend Summary. All are also gated by the `ai_assist_enabled` setting in **Admin → AI Assist** — these variables select and configure the LLM provider, they don't enable the features by themselves.
+
+| Variable | Default | Description |
+|---|---|---|
+| `AI_PROVIDER` | `claude` | `claude`, `codex`, or `ollama` |
+| `ANTHROPIC_API_KEY` | — | Required when `AI_PROVIDER=claude` |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-5` | Claude model name |
+| `OPENAI_API_KEY` | — | Required when `AI_PROVIDER=codex` |
+| `OPENAI_MODEL` | `gpt-5` | Codex/OpenAI model name |
+| `OLLAMA_HOST` | — | Ollama server URL (local or cloud), required when `AI_PROVIDER=ollama` |
+| `OLLAMA_MODEL` | `llama3.1` | Ollama model name |
+| `OLLAMA_API_KEY` | — | Optional — set when the Ollama host requires a bearer token |
+
 ---
 
 ## Infrastructure Dashboard Targets (`infra_targets.json`)
@@ -117,6 +132,14 @@ These files are gitignored and must be created from the bundled `*.example.*` te
 | `map_regions.json` | Built-in defaults | Map pin colour regions; created on first admin save |
 | `smtp_config.json` | `smtp_config.example.json` | SMTP configuration for scheduled exports |
 | `config_diff_jobs.json` | `config_diff_jobs.example.json` | Scheduled Config-Delta export jobs |
+| `device_review_jobs.json` | `device_review_jobs.example.json` | Scheduled Device Review (CIS audit) export jobs |
+| `naming.yaml` | `naming.example.yaml` | Rule-naming standards used by Rule Validation's AI Assist |
+| `review_requirements.yaml` | `review_requirements.example.yaml` | Approval/risk-review standards used by Rule Validation's AI Assist |
+| `protocol_severity.json` | `protocol_severity.example.json` | Optional overrides for Device Review's protocol security classification |
+| `backup_config.json` | `backup_config.example.json` | Backup schedule and remote-transfer settings |
+| `ai_usage.db` | Created automatically | SQLite — AI Assist call/cost history |
+| `host_metrics.db` | Created automatically | SQLite — host CPU/mem/disk sample history |
+| `summary_history.json` | Created automatically | Managed Network Summary history |
 
 ---
 
