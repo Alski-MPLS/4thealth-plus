@@ -18,9 +18,9 @@ def compute_trend(series: list[dict], threshold: float = 90.0) -> dict:
     bucketed metric series ({"ts": int, "v": float|None} points, ordered).
 
     All fields are None when fewer than 2 non-null points are available.
-    slope_per_day is 0.0 for a flat or falling series that never reaches
-    the threshold; days_to_threshold is None whenever slope_per_day <= 0
-    or the series is already at/above the threshold.
+    slope_per_day is 0.0 for a flat series, negative for a falling series;
+    days_to_threshold is None whenever slope_per_day <= 0 or the series is
+    already at/above the threshold.
     """
     points = [(p["ts"], p["v"]) for p in series if p.get("v") is not None]
     if len(points) < 2:

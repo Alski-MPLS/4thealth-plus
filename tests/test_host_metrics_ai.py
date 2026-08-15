@@ -52,6 +52,41 @@ def test_compute_trend_ignores_null_values():
     assert trend["end"] == 60.0
 
 
+def test_compute_trend_zero_start_value_guards_division():
+    """Regression test: start_v = 0.0 should not cause ZeroDivisionError."""
+    from app.host_metrics_ai import compute_trend
+
+    series = [{"ts": 0, "v": 0.0}, {"ts": 86400, "v": 10.0}]
+    trend = compute_trend(series, threshold=90.0)
+
+    # pct_change should be 0.0 (guarded by 'if start_v else 0.0')
+    assert trend["start"] == 0.0
+    assert trend["end"] == 10.0
+    assert trend["pct_change"] == 0.0
+    # slope_per_day = (10.0 - 0.0) / 1.0 = 10.0
+    assert trend["slope_per_day"] == 10.0
+
+
+def test_compute_trend_falling_series_no_threshold_projection():
+    """Regression test: falling series should have negative slope and no threshold projection."""
+    from app.host_metrics_ai import compute_trend
+
+    # 3 points declining from 80 to 60 over 2 days
+    series = [
+        {"ts": 0, "v": 80.0},
+        {"ts": 86400, "v": 70.0},
+        {"ts": 172800, "v": 60.0},
+    ]
+    trend = compute_trend(series, threshold=90.0)
+
+    assert trend["start"] == 80.0
+    assert trend["end"] == 60.0
+    assert trend["pct_change"] == -25.0  # (60-80)/80 * 100
+    assert trend["slope_per_day"] == -10.0  # (60-80)/2 = -10.0
+    # days_to_threshold must be None (slope_per_day > 0 guard is False)
+    assert trend["days_to_threshold"] is None
+
+
 def test_build_trend_narrative_calls_provider():
     from app.host_metrics_ai import build_trend_narrative
 
