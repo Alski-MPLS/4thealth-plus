@@ -496,6 +496,7 @@
     if (res.ok) {
       msgEl.textContent = enabled ? 'AI Assist enabled.' : 'AI Assist disabled.';
       msgEl.style.color = enabled ? 'var(--success)' : 'var(--warning)';
+      checkHostMetricsAiAvailability();
     } else {
       msgEl.textContent = 'Failed to save.';
       msgEl.style.color = 'var(--danger)';
