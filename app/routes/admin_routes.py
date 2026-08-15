@@ -343,6 +343,45 @@ def api_host_metrics():
     return jsonify(get_metrics(request.args.get("range", "1h")))
 
 
+@bp.route("/api/host-metrics/ai-summary")
+@_admin_required
+def api_host_metrics_ai_summary():
+    """Deterministic 7-day trend stats for CPU/mem/disk plus AI usage,
+    narrated by the configured LLM provider. Trend math is plain Python —
+    the LLM only explains numbers already computed here. Best-effort:
+    narration failure degrades to narrative=None, never a 500."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    import datetime as _dt
+
+    from app.host_metrics import get_metrics
+    from app.host_metrics_ai import compute_trend, build_trend_narrative
+    from app.ai_usage import usage_summary
+
+    series = get_metrics("7d")
+    trends = {
+        "cpu": compute_trend(series["cpu"]),
+        "mem": compute_trend(series["mem"]),
+        "disk": compute_trend(series["disk"]),
+    }
+
+    end = _dt.datetime.now(_dt.timezone.utc)
+    start = end - _dt.timedelta(days=7)
+    ai_usage = usage_summary(start, end)
+
+    narrative = None
+    narrative_error = None
+    try:
+        narrative = build_trend_narrative(trends, ai_usage)
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify({"trends": trends, "narrative": narrative, "narrative_error": narrative_error})
+
+
 # ── External API tokens ───────────────────────────────────────────────────────
 
 

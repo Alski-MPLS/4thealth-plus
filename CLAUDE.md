@@ -616,6 +616,18 @@ tooltip ("Reflects host memory — container memory limit may differ.") when
 `os.path.exists('/.dockerenv')` is true (passed to the template as
 `in_docker`).
 
+`GET /admin/api/host-metrics/ai-summary` computes deterministic 7-day
+trend stats for CPU/mem/disk (`app/host_metrics_ai.py::compute_trend()` —
+plain arithmetic, no LLM) plus the 7-day AI Assist usage summary, then
+narrates them via the configured LLM provider
+(`build_trend_narrative()`); returns `{ trends, narrative,
+narrative_error }` — narration failure degrades to `narrative: null` with
+`narrative_error` set, never a 500. `503` if AI Assist is disabled. Reuses
+the same `ai_assist_enabled` app-settings flag as Rule Validation's AI
+Assist, Device Review's AI Summary, Rule Hygiene's AI Explain, and
+Config-Delta's AI Summary (Admin → AI Assist) — there is no separate
+host-metrics toggle.
+
 Sub-tabs: Groups & Permissions, Map Region Colors, External API, AI Assist,
 Scheduled, Backup, **Zone Policy**, Application Logs.
 
