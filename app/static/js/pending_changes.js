@@ -45,23 +45,32 @@ async function checkPcAiSummaryAvailability() {
   }
 }
 
+// #pcAiSummaryBox is a persistent element (see template comment) that survives
+// device switches, but the fetch it triggers does not — a slow AI-summary
+// request for device A can resolve after the user has already switched to
+// device B. box.dataset.device tags which device the box (and any in-flight
+// request) currently belongs to; every place that would write into the box
+// checks this tag first and silently discards stale results instead of
+// misattributing device A's narrative to device B.
 function hidePcAiSummaryBox() {
   const box = document.getElementById('pcAiSummaryBox');
-  if (box) box.style.display = 'none';
+  if (box) { box.style.display = 'none'; box.dataset.device = ''; }
 }
 
 function showPcAiSummaryBoxIfAvailable(adom, device, diffResult) {
   const box = document.getElementById('pcAiSummaryBox');
   if (!box) return;
   const hasChanges = (diffResult.vdoms || []).some(v => (v.changes || []).length);
-  if (!_pcAiAssistAvailable || !hasChanges) { box.style.display = 'none'; return; }
+  if (!_pcAiAssistAvailable || !hasChanges) { box.style.display = 'none'; box.dataset.device = ''; return; }
   box.style.display = '';
+  box.dataset.device = device;
   const btn = document.getElementById('pcAiSummaryBtn');
   const out = document.getElementById('pcAiSummaryOutput');
   out.textContent = '';
   btn.disabled = false;
   btn.textContent = 'Summarize with AI';
   btn.onclick = async () => {
+    const requestDevice = device; // pin the device this click belongs to
     btn.disabled = true;
     btn.textContent = 'Summarizing…';
     out.textContent = '';
@@ -76,12 +85,16 @@ function showPcAiSummaryBoxIfAvailable(adom, device, diffResult) {
       );
       if (resp.status === 401) { location.href = '/login'; return; }
       const data = await resp.json();
+      if (box.dataset.device !== requestDevice) return; // user switched devices while this was in flight
       out.textContent = data.narrative || ('AI summary unavailable: ' + (data.narrative_error || data.error || 'unknown error'));
     } catch (e) {
+      if (box.dataset.device !== requestDevice) return;
       out.textContent = 'AI summary request failed: ' + e.message;
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Summarize with AI';
+      if (box.dataset.device === requestDevice) {
+        btn.disabled = false;
+        btn.textContent = 'Summarize with AI';
+      }
     }
   };
 }
