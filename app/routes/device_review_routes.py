@@ -386,3 +386,49 @@ def device_review_run():
             "rows": rows,
         }
     )
+
+
+# ── AI Summary ─────────────────────────────────────────────────────────────
+
+
+@bp.route("/api/device-review/ai-summary-status")
+@tab_required("device_review")
+def dr_ai_summary_status():
+    from app.app_settings import get_setting
+
+    return jsonify({"available": get_setting("ai_assist_enabled", False)})
+
+
+@bp.route("/api/device-review/ai-summary", methods=["POST"])
+@tab_required("device_review")
+def dr_ai_summary():
+    """Narrate an already-computed Device Review run. The LLM never computes
+    a finding — it only summarizes results the check engine already
+    produced. Narration is best-effort: any failure degrades to
+    narrative=None + narrative_error, never a 500."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    data = request.get_json(silent=True) or {}
+    adom = (data.get("adom") or "").strip()
+    results = data.get("results")
+    checks = data.get("checks") or []
+
+    if not results:
+        return jsonify({"error": "results is required"}), 400
+
+    from app.device_review_scheduler import _build_check_summary
+    from app.device_review_ai import build_narrative
+
+    check_summary = _build_check_summary(results, checks)
+
+    narrative = None
+    narrative_error = None
+    try:
+        narrative = build_narrative(adom, check_summary, results)
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify({"narrative": narrative, "narrative_error": narrative_error})
