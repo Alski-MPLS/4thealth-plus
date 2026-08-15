@@ -57,6 +57,23 @@ function hidePcAiSummaryBox() {
   if (box) { box.style.display = 'none'; box.dataset.device = ''; }
 }
 
+// Mirror app/pending_changes_ai.py's _trim_device(): cap total change lines
+// across all VDOMs at _PC_AI_MAX_LINES_PER_DEVICE so the POST body stays well
+// under Flask's MAX_CONTENT_LENGTH — the server trims to the same budget
+// anyway, so sending more only risks a 413 on a large multi-VDOM diff.
+const _PC_AI_MAX_LINES_PER_DEVICE = 30;
+function trimVdomsForAiSummary(vdoms) {
+  let remaining = _PC_AI_MAX_LINES_PER_DEVICE;
+  const out = [];
+  for (const vdom of (vdoms || [])) {
+    if (remaining <= 0) break;
+    const changes = (vdom.changes || []).slice(0, remaining);
+    remaining -= changes.length;
+    out.push({ name: vdom.name || 'root', changes });
+  }
+  return out;
+}
+
 function showPcAiSummaryBoxIfAvailable(adom, device, diffResult) {
   const box = document.getElementById('pcAiSummaryBox');
   if (!box) return;
@@ -80,10 +97,15 @@ function showPcAiSummaryBoxIfAvailable(adom, device, diffResult) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ summary: diffResult.summary, vdoms: diffResult.vdoms }),
+          body: JSON.stringify({ summary: diffResult.summary, vdoms: trimVdomsForAiSummary(diffResult.vdoms) }),
         }
       );
       if (resp.status === 401) { location.href = '/login'; return; }
+      if (resp.status === 413) {
+        if (box.dataset.device !== requestDevice) return;
+        out.textContent = 'AI summary unavailable: diff too large to summarize';
+        return;
+      }
       const data = await resp.json();
       if (box.dataset.device !== requestDevice) return; // user switched devices while this was in flight
       out.textContent = data.narrative || ('AI summary unavailable: ' + (data.narrative_error || data.error || 'unknown error'));

@@ -425,6 +425,8 @@ def pc_ai_summary(adom: str, device: str):
         return jsonify({"error": "AI Assist is not enabled"}), 503
 
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "body must be a JSON object"}), 400
     vdoms = data.get("vdoms")
     if not vdoms:
         return jsonify({"error": "vdoms is required"}), 400

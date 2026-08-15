@@ -218,8 +218,11 @@ def test_execute_job_narrative_failure_still_sends_email(jobs_path, monkeypatch)
         "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
         "format": "pdf", "email": "test@corp.com", "enabled": True,
     })
-    fake_results = [{"device": "fw-01", "ip": "", "status": "no_changes", "pkg_status": "",
-                      "summary": {}, "vdoms": [], "raw": "", "error": None}]
+    fake_results = [
+        {"device": "fw-01", "ip": "", "status": "ok", "pkg_status": "",
+         "summary": {}, "vdoms": [{"name": "root", "changes": [
+             {"type": "add", "line": "edit 1"}]}], "raw": "edit 1", "error": None},
+    ]
     sent = {}
     monkeypatch.setattr(
         "app.routes.pending_changes_routes.bulk_preview_adom",
@@ -238,3 +241,46 @@ def test_execute_job_narrative_failure_still_sends_email(jobs_path, monkeypatch)
     sched._execute_job(job["id"])  # must not raise
 
     assert sent["body"]
+    assert "AI Summary" not in sent["body"]
+
+    runs = sched.get_all_jobs()[0]["runs"]
+    assert runs[-1]["ai_narrative_error"] == "API down"
+
+
+def test_execute_job_no_changes_skips_ai_narrative(jobs_path, monkeypatch):
+    """When no device has any actual changes, the scheduler must not call the
+    LLM narrator at all, and no 'AI Summary' section is injected."""
+    import app.config_diff_scheduler as sched
+
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [
+        {"device": "fw-01", "ip": "", "status": "no_changes", "pkg_status": "",
+         "summary": {}, "vdoms": [], "raw": "", "error": None},
+        {"device": "fw-02", "ip": "", "status": "no_changes", "pkg_status": "",
+         "summary": {}, "vdoms": [{"name": "root", "changes": []}], "raw": "", "error": None},
+    ]
+    sent = {}
+    monkeypatch.setattr(
+        "app.routes.pending_changes_routes.bulk_preview_adom",
+        lambda adom, max_workers=1: fake_results,
+    )
+    monkeypatch.setattr(
+        "app.smtp_client.send_email",
+        lambda to, subject, body_html, attachments: sent.update({"body": body_html}),
+    )
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+    called = {}
+    monkeypatch.setattr(
+        "app.pending_changes_ai.build_diff_narrative",
+        lambda adom, devices: called.setdefault("called", True),
+    )
+
+    sched._execute_job(job["id"])
+
+    assert "called" not in called
+    assert "AI Summary" not in sent["body"]
+    runs = sched.get_all_jobs()[0]["runs"]
+    assert "ai_narrative_error" not in runs[-1]

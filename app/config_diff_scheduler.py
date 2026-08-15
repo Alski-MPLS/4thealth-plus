@@ -234,7 +234,9 @@ def _execute_job(job_id: str) -> None:
             "devices_with_changes": ok_count,
         }
 
-        ai_narrative_html = _build_ai_narrative_html(adom, results)
+        ai_narrative_html, ai_narrative_error = _build_ai_narrative_html(adom, results)
+        if ai_narrative_error:
+            record["ai_narrative_error"] = ai_narrative_error
 
         generated_at = datetime.datetime.utcnow().isoformat() + "Z"
         subject = f"4THealth+ Config-Delta — {adom} — {generated_at[:10]}"
@@ -286,13 +288,26 @@ def _esc(s) -> str:
     return str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _build_ai_narrative_html(adom: str, results: list[dict]) -> str:
-    """Return an HTML block with the AI narrative, or '' if disabled/unavailable.
-    Never raises — narration failure must not break export generation."""
+def _build_ai_narrative_html(
+    adom: str, results: list[dict]
+) -> tuple[str, str | None]:
+    """Return (html, error) for the AI narrative section.
+
+    html is '' if disabled/unavailable, there are no changes to summarize, or
+    narration failed; error is the failure message when narration was
+    attempted but raised, else None. Never raises — narration failure must
+    not break export generation."""
     from app.app_settings import get_setting
 
     if not get_setting("ai_assist_enabled", False):
-        return ""
+        return "", None
+
+    has_changes = any(
+        v.get("changes") for r in results for v in (r.get("vdoms") or [])
+    )
+    if not has_changes:
+        return "", None
+
     try:
         from app.pending_changes_ai import build_diff_narrative
 
@@ -303,8 +318,8 @@ def _build_ai_narrative_html(adom: str, results: list[dict]) -> str:
             "config_diff_scheduler",
             f"AI narrative generation failed for {adom}: {exc}",
         )
-        return ""
-    return f"<h3>AI Summary</h3><p style='white-space:pre-wrap'>{_esc(text)}</p>"
+        return "", str(exc)
+    return f"<h3>AI Summary</h3><p style='white-space:pre-wrap'>{_esc(text)}</p>", None
 
 
 def _build_summary_html(
@@ -426,11 +441,6 @@ def _build_pdf_html(
     generated_at: str,
     ai_narrative_html: str = "",
 ) -> str:
-    def esc(s):
-        return (
-            str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        )
-
     ok_count = sum(1 for r in results if r["status"] == "ok")
     no_changes_count = sum(1 for r in results if r["status"] == "no_changes")
     pkg_pending_count = sum(1 for r in results if r["status"] == "pkg_pending_no_diff")
@@ -451,9 +461,9 @@ def _build_pdf_html(
         f'<h1 style="font-size:16px;margin:0 0 10px 0;color:#111827">Config-Delta Export</h1>'
         f'<table style="border-collapse:collapse;font-size:11px;width:100%">'
         f'<tr><td style="padding:2px 12px 2px 0;color:#6b7280;width:180px">ADOM</td>'
-        f'<td style="font-weight:600">{esc(adom)}</td></tr>'
+        f'<td style="font-weight:600">{_esc(adom)}</td></tr>'
         f'<tr><td style="padding:2px 12px 2px 0;color:#6b7280">Generated (UTC)</td>'
-        f"<td>{esc(ts_display)}</td></tr>"
+        f"<td>{_esc(ts_display)}</td></tr>"
         f'<tr><td style="padding:2px 12px 2px 0;color:#6b7280">Devices scanned</td>'
         f"<td>{len(results)}</td></tr>"
         f'<tr><td style="padding:2px 12px 2px 0;color:#6b7280">With changes</td>'
@@ -477,26 +487,26 @@ def _build_pdf_html(
         elif r["status"] == "pkg_pending_no_diff":
             body = '<p style="color:#92400e;font-style:italic">Package marked as pending in FMG but install-preview produced no CLI diff (changes may be metadata-only).</p>'
         elif r["status"] == "error":
-            body = f'<p style="color:#b91c1c">Error: {esc(r.get("error", ""))}</p>'
+            body = f'<p style="color:#b91c1c">Error: {_esc(r.get("error", ""))}</p>'
         else:
             vdom_blocks = ""
             for v in r.get("vdoms", []):
                 lines = "".join(
                     f'<span style="color:{"#166534" if c["type"] == "add" else "#b91c1c" if c["type"] == "remove" else "#92400e"};display:block">'
-                    f"{esc(('+' if c['type'] == 'add' else '-' if c['type'] == 'remove' else '~') + ' ' + c['line'])}</span>"
+                    f"{_esc(('+' if c['type'] == 'add' else '-' if c['type'] == 'remove' else '~') + ' ' + c['line'])}</span>"
                     for c in v.get("changes", [])
                 )
-                vdom_blocks += f'<strong>vdom: {esc(v["name"])}</strong><pre style="background:#f8f9fa;padding:8px;font-size:9px;white-space:pre-wrap">{lines}</pre>'
+                vdom_blocks += f'<strong>vdom: {_esc(v["name"])}</strong><pre style="background:#f8f9fa;padding:8px;font-size:9px;white-space:pre-wrap">{lines}</pre>'
             body = (
                 vdom_blocks
                 or '<p style="color:#6b7280;font-style:italic">No changes.</p>'
             )
         sections.append(
-            f'<div style="{pb}padding-top:1cm"><h2>{esc(r["device"])}</h2>'
-            f'<div style="color:#6b7280;font-size:10px">{esc(r.get("ip", ""))}</div>{body}</div>'
+            f'<div style="{pb}padding-top:1cm"><h2>{_esc(r["device"])}</h2>'
+            f'<div style="color:#6b7280;font-size:10px">{_esc(r.get("ip", ""))}</div>{body}</div>'
         )
     return (
-        f'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Config-Delta — {esc(adom)}</title>'
+        f'<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Config-Delta — {_esc(adom)}</title>'
         f"<style>body{{font-family:Arial,sans-serif;font-size:11px;margin:1.5cm}}"
         f"h2{{font-size:14px}}@media print{{@page{{margin:1.2cm}}}}</style></head>"
         f"<body>{header_block}{''.join(sections)}</body></html>"

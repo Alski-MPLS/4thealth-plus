@@ -487,6 +487,8 @@ Two scheduler modules support recurring exports: Config-Delta diffs (`app/config
 
 **Run history pruning:** On each successful job execution, records older than `run_history_days` (default 30) are removed from `runs[]` in `config_diff_jobs.json`.
 
+**AI Summary:** When `ai_assist_enabled` is on, reports also include an AI-generated summary section (best-effort — silently omitted if narration fails, never blocks report delivery). The section is also omitted entirely when no device in the run has any actual diff changes (e.g. a fully in-sync ADOM), so a no-op run never triggers an LLM call or shows empty prose. A narration failure is recorded as `ai_narrative_error` on the run history entry in `config_diff_jobs.json`.
+
 #### Device Review Scheduled Jobs
 
 `app/device_review_scheduler.py` — APScheduler-based scheduler mirroring `config_diff_scheduler.py`.

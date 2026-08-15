@@ -68,6 +68,28 @@ def test_ai_summary_vdoms_wrong_type_returns_400(client):
     assert resp.status_code == 400
 
 
+def test_ai_summary_non_dict_body_returns_400(client):
+    """A JSON body that isn't an object (e.g. a list or string) must 400,
+    not 500 — request.get_json(silent=True) or {} only rescues falsy JSON
+    (None/0/""/[]), so a non-empty list or a non-empty string survives and
+    would otherwise blow up on data.get(...)."""
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.decorators.check_adom_access", return_value=None):
+        resp = _post(client, "/api/pending-changes/adoms/CorpADOM/device/fw-01/ai-summary", [
+            {"vdoms": []},
+        ])
+    assert resp.status_code == 400
+
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.decorators.check_adom_access", return_value=None):
+        resp = client.post(
+            "/api/pending-changes/adoms/CorpADOM/device/fw-01/ai-summary",
+            data=json.dumps("hello"), content_type="application/json",
+            headers={"X-CSRF-Token": "test-csrf"},
+        )
+    assert resp.status_code == 400
+
+
 def test_ai_summary_success(client):
     with patch("app.app_settings.get_setting", return_value=True), \
          patch("app.decorators.check_adom_access", return_value=None), \
