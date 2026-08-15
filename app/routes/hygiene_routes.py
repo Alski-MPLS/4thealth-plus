@@ -1126,6 +1126,45 @@ def hygiene_nat_lookup(adom: str):
     )
 
 
+# ── AI Explain ─────────────────────────────────────────────────────────────
+
+
+@bp.route("/api/hygiene/ai-explain-status")
+@tab_required("rule_hygiene")
+def hygiene_ai_explain_status():
+    from app.app_settings import get_setting
+
+    return jsonify({"available": get_setting("ai_assist_enabled", False)})
+
+
+@bp.route("/api/hygiene/explain-finding", methods=["POST"])
+@tab_required("rule_hygiene")
+def hygiene_explain_finding():
+    """Explain one already-computed Rule Hygiene finding. The LLM never
+    re-runs a check — app.hygiene.run_checks() already produced this
+    finding. Best-effort: any failure degrades to narrative=None, never
+    a 500."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    finding = request.get_json(silent=True) or {}
+    if not finding.get("check"):
+        return jsonify({"error": "check is required"}), 400
+
+    from app.hygiene_ai import explain_finding
+
+    narrative = None
+    narrative_error = None
+    try:
+        narrative = explain_finding(finding)
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify({"narrative": narrative, "narrative_error": narrative_error})
+
+
 # ── API: run checks ───────────────────────────────────────────────────────────
 
 
