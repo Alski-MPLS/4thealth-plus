@@ -14,6 +14,17 @@ let pageSize     = 25;
 let filterText   = '';
 let filterCheck  = '';
 let lastMeta     = null;
+let _hygieneAiExplainAvailable = false;
+
+async function checkHygieneAiExplainAvailability() {
+  try {
+    const resp = await fetch('/api/hygiene/ai-explain-status');
+    const data = await resp.json();
+    _hygieneAiExplainAvailable = !!data.available;
+  } catch (e) {
+    _hygieneAiExplainAvailable = false;
+  }
+}
 
 /* ── Policy viewer state ────────────────────────────────────────────────────── */
 let allPolicies    = [];
@@ -256,7 +267,7 @@ function renderTable() {
     const label  = checkLabels[f.check] || f.check;
     const rowId  = `finding-detail-${currentPage}-${i}`;
     const isShadow     = f.check === 'shadow' && f.shadow_rule && f.shadowing_rule;
-    const hasDetail    = isShadow || !!f.rule_detail;
+    const hasDetail    = isShadow || !!f.rule_detail || _hygieneAiExplainAvailable;
     const expandBtn = hasDetail
       ? ` <button class="shadow-expand-btn" data-target="${rowId}" title="Show rule details" aria-expanded="false">&#9660;</button>`
       : '';
@@ -273,13 +284,25 @@ function renderTable() {
     if (isShadow) {
       detailContent = ruleCard(f.shadow_rule, 'Shadowed Rule (hidden — never hit)') +
                       ruleCard(f.shadowing_rule, 'Shadowing Rule (earlier — intercepts traffic)');
-    } else {
+    } else if (f.rule_detail) {
       detailContent = ruleCard(f.rule_detail, 'Rule Details');
+    } else {
+      detailContent = '';
     }
+
+    // Absolute index into filtered() (not the per-page slice index `i`), so
+    // wireExplainButtons()/the delegated click handler can look the finding
+    // back up correctly regardless of which page is currently rendered.
+    const findingIdx = (currentPage - 1) * pageSize + i;
+    const explainBlock = _hygieneAiExplainAvailable ? `
+      <div class="hygiene-ai-explain" style="margin-top:8px">
+        <button class="btn btn-secondary hygiene-explain-btn" type="button" data-finding-idx="${findingIdx}">Explain</button>
+        <div class="hygiene-explain-output" style="margin-top:6px;font-size:.85rem;line-height:1.5;white-space:pre-wrap"></div>
+      </div>` : '';
 
     const detailRow = `<tr id="${rowId}" class="shadow-detail-row" style="display:none">
       <td colspan="4">
-        <div class="shadow-detail-wrap">${detailContent}</div>
+        <div class="shadow-detail-wrap">${detailContent}${explainBlock}</div>
       </td>
     </tr>`;
     return mainRow + detailRow;
@@ -1935,16 +1958,45 @@ document.getElementById('hygienePagination').addEventListener('click', e => {
 });
 
 document.getElementById('hygieneTbody').addEventListener('click', e => {
-  const btn = e.target.closest('.shadow-expand-btn');
-  if (!btn) return;
-  const targetId = btn.dataset.target;
-  const detailRow = document.getElementById(targetId);
-  if (!detailRow) return;
-  const open = detailRow.style.display !== 'none';
-  detailRow.style.display = open ? 'none' : '';
-  btn.setAttribute('aria-expanded', String(!open));
-  btn.innerHTML = open ? '&#9660;' : '&#9650;';
+  const expandBtn = e.target.closest('.shadow-expand-btn');
+  if (expandBtn) {
+    const targetId = expandBtn.dataset.target;
+    const detailRow = document.getElementById(targetId);
+    if (!detailRow) return;
+    const open = detailRow.style.display !== 'none';
+    detailRow.style.display = open ? 'none' : '';
+    expandBtn.setAttribute('aria-expanded', String(!open));
+    expandBtn.innerHTML = open ? '&#9660;' : '&#9650;';
+    return;
+  }
+
+  const explainBtn = e.target.closest('.hygiene-explain-btn');
+  if (explainBtn) runFindingExplain(explainBtn);
 });
+
+async function runFindingExplain(btn) {
+  const idx = parseInt(btn.dataset.findingIdx, 10);
+  const finding = filtered()[idx];
+  const out = btn.nextElementSibling;
+  if (!finding || !out) return;
+  btn.disabled = true;
+  btn.textContent = 'Explaining…';
+  out.textContent = '';
+  try {
+    const resp = await fetch('/api/hygiene/explain-finding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(finding),
+    });
+    const data = await resp.json();
+    out.textContent = data.narrative || ('AI explanation unavailable: ' + (data.narrative_error || data.error || 'unknown error'));
+  } catch (e) {
+    out.textContent = 'AI explanation request failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Explain';
+  }
+}
 
 document.getElementById('exportCsv').addEventListener('click', exportCsv);
 document.getElementById('exportJson').addEventListener('click', exportJson);
@@ -2202,3 +2254,4 @@ document.getElementById('nlExportPdf').addEventListener('click', nlExportPdf);
 /* ── Init ───────────────────────────────────────────────────────────────────── */
 captureCheckLabels();
 loadAdoms();
+checkHygieneAiExplainAvailability();
