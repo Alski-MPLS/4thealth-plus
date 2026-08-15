@@ -78,6 +78,12 @@
 <!-- Results -->
 <div id="drResults" style="display:none;margin-top:1.5rem">
 
+  <!-- AI Assist summary — populated after run, only shown when AI Assist is enabled -->
+  <div id="drAiSummaryBox" style="display:none; margin: 12px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-alt);">
+    <button id="drAiSummaryBtn" class="btn btn-secondary" type="button">Summarize with AI</button>
+    <div id="drAiSummaryOutput" style="margin-top: 10px; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;"></div>
+  </div>
+
   <!-- Protocol filter panel — populated after run (only shown when interface check ran) -->
   <div id="drProtoPanel" style="margin-bottom:1rem;display:none">
     <div style="font-size:.8rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.45rem">
@@ -149,5 +155,5 @@
 /* Check definitions injected from server — used by JS to build param inputs */
 const CHECK_DEFS = {{ checks | tojson }};
 </script>
-<script src="{{ url_for('static', filename='js/device_review.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/device_review.js') }}?v=8"></script>
 {% endblock %}

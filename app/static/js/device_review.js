@@ -55,6 +55,55 @@ let activeProtos  = new Set();
 let _protoMeta    = {};
 let _abortRun     = false;
 let _knownDevices = [];
+let lastResultsByDevice = []; // [{device, rows, error}, ...] — per-device shape the AI summary endpoint expects
+
+/* ── AI Assist summary ──────────────────────────────────────────────────────── */
+let _drAiAssistAvailable = false;
+
+async function checkAiSummaryAvailability() {
+  try {
+    const resp = await fetch('/api/device-review/ai-summary-status');
+    const data = await resp.json();
+    _drAiAssistAvailable = !!data.available;
+  } catch (e) {
+    _drAiAssistAvailable = false;
+  }
+}
+
+function showAiSummaryBoxIfAvailable(adom, results, checks) {
+  const box = document.getElementById('drAiSummaryBox');
+  if (!box) return;
+  if (!_drAiAssistAvailable) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const btn = document.getElementById('drAiSummaryBtn');
+  const out = document.getElementById('drAiSummaryOutput');
+  out.textContent = '';
+  btn.disabled = false;
+  btn.textContent = 'Summarize with AI';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Summarizing…';
+    out.textContent = '';
+    try {
+      const resp = await fetch('/api/device-review/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adom, results, checks }),
+      });
+      const data = await resp.json();
+      if (data.narrative) {
+        out.textContent = data.narrative;
+      } else {
+        out.textContent = 'AI summary unavailable: ' + (data.narrative_error || data.error || 'unknown error');
+      }
+    } catch (e) {
+      out.textContent = 'AI summary request failed: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Summarize with AI';
+    }
+  };
+}
 
 /* ── Error/clear ────────────────────────────────────────────────────────────── */
 function showError(msg) {
@@ -269,9 +318,11 @@ async function runAnalysis() {
   cancelBtn.style.display = '';
   document.getElementById('drRunning').style.display = '';
   document.getElementById('drResults').style.display = 'none';
+  document.getElementById('drAiSummaryBox').style.display = 'none';
 
   const collectedRows = [];
   const reviewed      = [];
+  const resultsByDevice = []; // per-device {device, rows, error} — shape the AI summary endpoint expects
 
   showProgress(0, deviceList.length, deviceList[0]);
 
@@ -292,9 +343,13 @@ async function runAnalysis() {
       if (resp.ok && Array.isArray(data.rows)) {
         collectedRows.push(...data.rows);
         reviewed.push(device);
+        resultsByDevice.push({ device, rows: data.rows, error: null });
+      } else {
+        resultsByDevice.push({ device, rows: [], error: data.error || `HTTP ${resp.status}` });
       }
-    } catch (_) {
+    } catch (e) {
       // network error on one device — skip and continue
+      resultsByDevice.push({ device, rows: [], error: e.message });
     }
   }
 
@@ -302,6 +357,7 @@ async function runAnalysis() {
 
   const runAt = new Date().toLocaleString();
   allRows  = collectedRows;
+  lastResultsByDevice = resultsByDevice;
   lastMeta = {
     adom:         adom,
     run_at:       runAt,
@@ -325,6 +381,7 @@ async function runAnalysis() {
   renderTable();
 
   document.getElementById('drResults').style.display = '';
+  showAiSummaryBoxIfAvailable(adom, lastResultsByDevice, checks);
 
   const failCount = allRows.filter(r => r.result === 'FAIL' || r.result === 'INSECURE').length;
   const passCount = allRows.filter(r => r.result === 'PASS').length;
@@ -758,3 +815,4 @@ document.getElementById('drChecks').addEventListener('change', updateParamsPanel
 /* ── Init ───────────────────────────────────────────────────────────────────── */
 loadAdoms();
 updateParamsPanel();
+checkAiSummaryAvailability();
