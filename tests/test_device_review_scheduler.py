@@ -861,3 +861,97 @@ def test_filter_bar_absent_from_csv_and_json():
         content = att["data"].decode()
         assert "dr-filter-bar" not in content, f"{fmt} should not contain filter bar"
         assert "filterFindings" not in content, f"{fmt} should not contain filter JS"
+
+
+def test_execute_job_includes_ai_narrative_when_enabled(jobs_path, monkeypatch):
+    import app.device_review_scheduler as sched
+
+    fake_meta = [
+        {"key": "trusted_hosts", "name": "Trusted Hosts on Admin Accounts (CIS)",
+         "description": "Check trusted hosts"},
+    ]
+    monkeypatch.setattr("app.device_review_scheduler._CHECKS_META", fake_meta)
+
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "checks": ["trusted_hosts"], "check_params": {},
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+
+    fake_results = [
+        {"device": "fw-01", "ip": "10.0.0.1",
+         "rows": [{"device": "fw-01", "check": "Trusted Hosts on Admin Accounts (CIS)",
+                   "result": "FAIL", "interface": "system", "vdom": "root",
+                   "ip": "", "detail": "no restriction", "protocols": [],
+                   "has_insecure": False, "has_secure": False}],
+         "error": None},
+    ]
+
+    sent = {}
+    monkeypatch.setattr("app.device_review_scheduler._bulk_device_review_adom",
+                         lambda *a, **kw: fake_results)
+    monkeypatch.setattr("app.device_review_scheduler._send_email",
+                         lambda to, subject, body_html, attachments: sent.update(
+                             {"body": body_html, "attachments": attachments}))
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+    monkeypatch.setattr("app.device_review_ai.build_narrative",
+                         lambda adom, cs, r: "One admin account needs a trusted-host restriction.")
+
+    sched._execute_job(job["id"])
+
+    assert "One admin account needs a trusted-host restriction." in sent["body"]
+    pdf_bytes = sent["attachments"][0]["data"]
+    assert b"One admin account needs a trusted-host restriction." in pdf_bytes
+
+
+def test_execute_job_omits_narrative_when_disabled(jobs_path, monkeypatch):
+    import app.device_review_scheduler as sched
+
+    fake_meta = [{"key": "trusted_hosts", "name": "Trusted Hosts on Admin Accounts (CIS)",
+                  "description": "d"}]
+    monkeypatch.setattr("app.device_review_scheduler._CHECKS_META", fake_meta)
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "checks": ["trusted_hosts"], "check_params": {},
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [{"device": "fw-01", "ip": "", "rows": [], "error": None}]
+    sent = {}
+    monkeypatch.setattr("app.device_review_scheduler._bulk_device_review_adom",
+                         lambda *a, **kw: fake_results)
+    monkeypatch.setattr("app.device_review_scheduler._send_email",
+                         lambda to, subject, body_html, attachments: sent.update({"body": body_html}))
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: False)
+
+    sched._execute_job(job["id"])
+
+    assert "AI Summary" not in sent["body"]
+
+
+def test_execute_job_narrative_failure_still_sends_email(jobs_path, monkeypatch):
+    import app.device_review_scheduler as sched
+
+    fake_meta = [{"key": "trusted_hosts", "name": "Trusted Hosts on Admin Accounts (CIS)",
+                  "description": "d"}]
+    monkeypatch.setattr("app.device_review_scheduler._CHECKS_META", fake_meta)
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "checks": ["trusted_hosts"], "check_params": {},
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [{"device": "fw-01", "ip": "", "rows": [], "error": None}]
+    sent = {}
+    monkeypatch.setattr("app.device_review_scheduler._bulk_device_review_adom",
+                         lambda *a, **kw: fake_results)
+    monkeypatch.setattr("app.device_review_scheduler._send_email",
+                         lambda to, subject, body_html, attachments: sent.update({"body": body_html}))
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+
+    def _raise(adom, cs, r):
+        raise RuntimeError("API down")
+
+    monkeypatch.setattr("app.device_review_ai.build_narrative", _raise)
+
+    sched._execute_job(job["id"])  # must not raise
+
+    assert sent["body"]  # email still sent

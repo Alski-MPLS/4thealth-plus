@@ -255,9 +255,12 @@ def _execute_job(job_id: str) -> None:
         generated_at = record["ran_at"]
         subject = f"4THealth+ Device Review — {adom} — {generated_at[:10]}"
         check_summary = _build_check_summary(results, checks)
-        body_html = _build_summary_html(adom, results, generated_at, check_summary)
+        ai_narrative_html = _build_ai_narrative_html(adom, check_summary, results)
+        body_html = _build_summary_html(
+            adom, results, generated_at, check_summary, ai_narrative_html
+        )
         attachment = _build_attachment_dr(
-            adom, fmt, results, generated_at, check_summary
+            adom, fmt, results, generated_at, check_summary, ai_narrative_html
         )
 
         _send_email(email, subject, body_html, [attachment])
@@ -561,11 +564,40 @@ def _build_host_summary_html(results: list[dict]) -> str:
     )
 
 
+def _build_ai_narrative_html(
+    adom: str, check_summary: list[dict], results: list[dict]
+) -> str:
+    """Return an HTML block with the AI narrative, or '' if disabled/unavailable.
+
+    Never raises — narration failure must not break report generation.
+    """
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return ""
+    try:
+        from app.device_review_ai import build_narrative
+
+        text = build_narrative(adom, check_summary, results)
+    except Exception as exc:
+        app_log(
+            "WARNING",
+            "device_review_scheduler",
+            f"AI narrative generation failed for {adom}: {exc}",
+        )
+        return ""
+    return (
+        f"<h3 style='font-family:sans-serif;margin-top:24px'>AI Summary</h3>"
+        f"<p style='font-family:sans-serif;font-size:13px;white-space:pre-wrap'>{_esc(text)}</p>"
+    )
+
+
 def _build_summary_html(
     adom: str,
     results: list[dict],
     generated_at: str,
     check_summary: list[dict],
+    ai_narrative_html: str = "",
 ) -> str:
     errors = [d.get("device", "unknown") for d in results if d.get("error")]
     error_note = ""
@@ -613,6 +645,7 @@ def _build_summary_html(
 <p style="font-family:sans-serif;color:#6b7280">Generated: {generated_at}</p>
 <p style="font-family:sans-serif">Devices scanned: {len(results)}</p>
 {error_note}
+{ai_narrative_html}
 {check_summary_html}
 {host_summary_html}
 <p style="font-family:sans-serif;font-size:11px;color:#9ca3af;margin-top:16px">
@@ -626,6 +659,7 @@ def _build_attachment_dr(
     results: list[dict],
     generated_at: str,
     check_summary: list[dict],
+    ai_narrative_html: str = "",
 ) -> dict:
     all_rows = [r for dev in results for r in dev.get("rows", [])]
     safe_adom = adom.replace(" ", "_")
@@ -756,7 +790,9 @@ def _build_attachment_dr(
         }
 
     # pdf → styled HTML
-    html = _build_pdf_html_dr(adom, results, generated_at, check_summary)
+    html = _build_pdf_html_dr(
+        adom, results, generated_at, check_summary, ai_narrative_html
+    )
     return {
         "filename": f"device_review_{safe_adom}_{date_str}.html",
         "data": html.encode(),
@@ -765,7 +801,11 @@ def _build_attachment_dr(
 
 
 def _build_pdf_html_dr(
-    adom: str, results: list[dict], generated_at: str, check_summary: list[dict]
+    adom: str,
+    results: list[dict],
+    generated_at: str,
+    check_summary: list[dict],
+    ai_narrative_html: str = "",
 ) -> str:
     all_rows = [r for dev in results for r in dev.get("rows", [])]
 
@@ -883,6 +923,7 @@ def _build_pdf_html_dr(
   Total findings: {len(all_rows)} &nbsp;|&nbsp;
   Generated: {generated_at}
 </div>
+{ai_narrative_html}
 <h2>Check Summary</h2>
 <table>
   <thead>
