@@ -68,6 +68,16 @@ def test_ai_summary_success(client):
     mock_build.assert_called_once()
 
 
+def test_ai_summary_malformed_results_returns_400(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post(client, "/api/device-review/ai-summary", {
+            "adom": "CorpADOM", "results": ["not-a-dict"],
+        })
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "results" in data["error"]
+
+
 def test_ai_summary_narration_failure_returns_200_with_error(client):
     fake_results = [{"device": "fw-01", "rows": [], "error": None}]
     with patch("app.app_settings.get_setting", return_value=True), \

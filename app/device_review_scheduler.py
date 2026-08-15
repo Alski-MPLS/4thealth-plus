@@ -255,13 +255,18 @@ def _execute_job(job_id: str) -> None:
         generated_at = record["ran_at"]
         subject = f"4THealth+ Device Review — {adom} — {generated_at[:10]}"
         check_summary = _build_check_summary(results, checks)
-        ai_narrative_html = _build_ai_narrative_html(adom, check_summary, results)
+        ai_narrative_html, ai_narrative_error = _build_ai_narrative_html(
+            adom, check_summary, results
+        )
         body_html = _build_summary_html(
             adom, results, generated_at, check_summary, ai_narrative_html
         )
         attachment = _build_attachment_dr(
             adom, fmt, results, generated_at, check_summary, ai_narrative_html
         )
+
+        if ai_narrative_error:
+            record["ai_narrative_error"] = ai_narrative_error
 
         _send_email(email, subject, body_html, [attachment])
         _append_run(job_id, record)
@@ -566,15 +571,17 @@ def _build_host_summary_html(results: list[dict]) -> str:
 
 def _build_ai_narrative_html(
     adom: str, check_summary: list[dict], results: list[dict]
-) -> str:
-    """Return an HTML block with the AI narrative, or '' if disabled/unavailable.
+) -> tuple[str, str | None]:
+    """Return (html, error) for the AI narrative section.
 
+    html is '' if disabled/unavailable or narration failed; error is the
+    failure message when narration was attempted but raised, else None.
     Never raises — narration failure must not break report generation.
     """
     from app.app_settings import get_setting
 
     if not get_setting("ai_assist_enabled", False):
-        return ""
+        return "", None
     try:
         from app.device_review_ai import build_narrative
 
@@ -585,11 +592,12 @@ def _build_ai_narrative_html(
             "device_review_scheduler",
             f"AI narrative generation failed for {adom}: {exc}",
         )
-        return ""
-    return (
+        return "", str(exc)
+    html = (
         f"<h3 style='font-family:sans-serif;margin-top:24px'>AI Summary</h3>"
         f"<p style='font-family:sans-serif;font-size:13px;white-space:pre-wrap'>{_esc(text)}</p>"
     )
+    return html, None
 
 
 def _build_summary_html(

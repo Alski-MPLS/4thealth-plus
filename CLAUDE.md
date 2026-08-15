@@ -261,6 +261,12 @@ A `Row` dict must contain: `device`, `interface` (or `"system"` for device-level
 - `GET  /api/device-review/adoms/<adom>/devices` — list devices in an ADOM
 - `POST /api/device-review/run/device` — body: `{ adom, device, checks, check_params }` — single device (used by progress loop)
 - `POST /api/device-review/run` — body: `{ adom, devices, checks, check_params }` — bulk run; `devices: []` means all, `checks` absent means all, `check_params` maps check key → param dict
+- `GET  /api/device-review/ai-summary-status` — reports whether AI Summary is available (reads the `ai_assist_enabled` app-settings flag)
+- `POST /api/device-review/ai-summary` — body: `{ adom, results, checks }` — narrates an already-computed run; returns `{ narrative, narrative_error }`, never a 500
+
+AI Summary ("Summarize with AI" on the Device Review results table) reuses
+the same `ai_assist_enabled` app-settings flag as Rule Validation's AI
+Assist (Admin → AI Assist) — there is no separate Device Review toggle.
 
 **Adding a new CIS check (binary example):**
 1. Add a proxy method to `fmg_client.py` if new device data is needed.
@@ -504,7 +510,7 @@ Persists jobs in `device_review_jobs.json` (gitignored; copy `device_review_jobs
 | `POST` | `/admin/api/device-review/jobs/<id>/run` | Trigger an immediate run |
 | `GET` | `/admin/api/device-review/jobs/<id>/status` | Get last run status / history |
 
-**Scheduled report output:** Email reports include a **per-host summary table** at the top of both the email body and the attached file (HTML, CSV, and JSON formats), showing per-device counts for each result type: Device | PASS | FAIL | INSECURE | WARN | CONFIG_MISSING | INFO | Total. The per-check aggregate summary follows below the host summary in the email body.
+**Scheduled report output:** Email reports include a **per-host summary table** at the top of both the email body and the attached file (HTML, CSV, and JSON formats), showing per-device counts for each result type: Device | PASS | FAIL | INSECURE | WARN | CONFIG_MISSING | INFO | Total. The per-check aggregate summary follows below the host summary in the email body. When `ai_assist_enabled` is on, reports also include an AI-generated summary section (best-effort — silently omitted if narration fails, never blocks report delivery).
 
 ### External API
 

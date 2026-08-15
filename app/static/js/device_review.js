@@ -55,7 +55,6 @@ let activeProtos  = new Set();
 let _protoMeta    = {};
 let _abortRun     = false;
 let _knownDevices = [];
-let lastResultsByDevice = []; // [{device, rows, error}, ...] — per-device shape the AI summary endpoint expects
 
 /* ── AI Assist summary ──────────────────────────────────────────────────────── */
 let _drAiAssistAvailable = false;
@@ -85,11 +84,30 @@ function showAiSummaryBoxIfAvailable(adom, results, checks) {
     btn.textContent = 'Summarizing…';
     out.textContent = '';
     try {
+      // Slim projection: only the fields the backend's _build_check_summary()
+      // and build_narrative()/_fail_rows() actually read, to keep this
+      // payload well under Flask's MAX_CONTENT_LENGTH on large ADOMs.
+      const slimResults = results.map(d => ({
+        device: d.device,
+        error: d.error,
+        rows: (d.rows || []).map(r => ({
+          device: r.device,
+          check: r.check,
+          result: r.result,
+          interface: r.interface,
+          detail: r.detail,
+        })),
+      }));
       const resp = await fetch('/api/device-review/ai-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adom, results, checks }),
+        body: JSON.stringify({ adom, results: slimResults, checks }),
       });
+      if (resp.status === 401) { location.href = '/login'; return; }
+      if (resp.status === 413) {
+        out.textContent = 'AI summary unavailable: response too large (try a smaller ADOM or fewer checks)';
+        return;
+      }
       const data = await resp.json();
       if (data.narrative) {
         out.textContent = data.narrative;
@@ -357,7 +375,6 @@ async function runAnalysis() {
 
   const runAt = new Date().toLocaleString();
   allRows  = collectedRows;
-  lastResultsByDevice = resultsByDevice;
   lastMeta = {
     adom:         adom,
     run_at:       runAt,
@@ -381,7 +398,7 @@ async function runAnalysis() {
   renderTable();
 
   document.getElementById('drResults').style.display = '';
-  showAiSummaryBoxIfAvailable(adom, lastResultsByDevice, checks);
+  showAiSummaryBoxIfAvailable(adom, resultsByDevice, checks);
 
   const failCount = allRows.filter(r => r.result === 'FAIL' || r.result === 'INSECURE').length;
   const passCount = allRows.filter(r => r.result === 'PASS').length;

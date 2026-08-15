@@ -955,3 +955,63 @@ def test_execute_job_narrative_failure_still_sends_email(jobs_path, monkeypatch)
     sched._execute_job(job["id"])  # must not raise
 
     assert sent["body"]  # email still sent
+
+    jobs = sched._load()
+    job_after = next(j for j in jobs if j["id"] == job["id"])
+    last_run = job_after.get("runs", [])[-1]
+    assert last_run.get("ai_narrative_error") == "API down"
+
+
+def test_execute_job_narrative_success_no_ai_narrative_error(jobs_path, monkeypatch):
+    import app.device_review_scheduler as sched
+
+    fake_meta = [{"key": "trusted_hosts", "name": "Trusted Hosts on Admin Accounts (CIS)",
+                  "description": "d"}]
+    monkeypatch.setattr("app.device_review_scheduler._CHECKS_META", fake_meta)
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "checks": ["trusted_hosts"], "check_params": {},
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [{"device": "fw-01", "ip": "", "rows": [], "error": None}]
+    sent = {}
+    monkeypatch.setattr("app.device_review_scheduler._bulk_device_review_adom",
+                         lambda *a, **kw: fake_results)
+    monkeypatch.setattr("app.device_review_scheduler._send_email",
+                         lambda to, subject, body_html, attachments: sent.update({"body": body_html}))
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: True)
+    monkeypatch.setattr("app.device_review_ai.build_narrative", lambda adom, cs, r: "All good.")
+
+    sched._execute_job(job["id"])
+
+    jobs = sched._load()
+    job_after = next(j for j in jobs if j["id"] == job["id"])
+    last_run = job_after.get("runs", [])[-1]
+    assert "ai_narrative_error" not in last_run
+
+
+def test_execute_job_narrative_disabled_no_ai_narrative_error(jobs_path, monkeypatch):
+    import app.device_review_scheduler as sched
+
+    fake_meta = [{"key": "trusted_hosts", "name": "Trusted Hosts on Admin Accounts (CIS)",
+                  "description": "d"}]
+    monkeypatch.setattr("app.device_review_scheduler._CHECKS_META", fake_meta)
+    job = sched.create_job({
+        "name": "T", "adom": "CorpADOM", "days_of_week": ["MON"], "time": "06:00",
+        "checks": ["trusted_hosts"], "check_params": {},
+        "format": "pdf", "email": "test@corp.com", "enabled": True,
+    })
+    fake_results = [{"device": "fw-01", "ip": "", "rows": [], "error": None}]
+    sent = {}
+    monkeypatch.setattr("app.device_review_scheduler._bulk_device_review_adom",
+                         lambda *a, **kw: fake_results)
+    monkeypatch.setattr("app.device_review_scheduler._send_email",
+                         lambda to, subject, body_html, attachments: sent.update({"body": body_html}))
+    monkeypatch.setattr("app.app_settings.get_setting", lambda k, d=None: False)
+
+    sched._execute_job(job["id"])
+
+    jobs = sched._load()
+    job_after = next(j for j in jobs if j["id"] == job["id"])
+    last_run = job_after.get("runs", [])[-1]
+    assert "ai_narrative_error" not in last_run

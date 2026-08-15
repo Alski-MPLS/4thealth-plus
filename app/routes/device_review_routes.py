@@ -418,6 +418,8 @@ def dr_ai_summary():
 
     if not results:
         return jsonify({"error": "results is required"}), 400
+    if not isinstance(results, list) or not all(isinstance(d, dict) for d in results):
+        return jsonify({"error": "results must be a list of device result objects"}), 400
 
     from app.device_review_scheduler import _build_check_summary
     from app.device_review_ai import build_narrative
