@@ -18,10 +18,13 @@ const SECTIONS = [
   <li><strong>Device Versions</strong> — firmware version distribution across all devices in an ADOM.</li>
   <li><strong>Rule Review</strong> — policy viewer with full-text search and exports, plus automated hygiene checks on a selected package.</li>
   <li><strong>Device Review</strong> — per-device interface audit showing which management protocols (HTTP, Telnet, HTTPS, SSH, etc.) are enabled, with insecure protocols highlighted red.</li>
-  <li><strong>Rule Validation</strong> — evaluate whether proposed flows are already permitted or need new/modified rules.</li>
+  <li><strong>Rule Validation</strong> — evaluate whether proposed flows are already permitted or need new/modified rules, with an optional AI Assist mode.</li>
   <li><strong>Zone Policy</strong> — browse and query your network segmentation policy database.</li>
+  <li><strong>Config-Delta</strong> — see exactly which FortiOS CLI lines will change on the next install to a device, before it happens.</li>
   <li><strong>Map (Beta)</strong> — interactive geographic map of all managed FortiGate devices, colour-coded by ADOM with zoom-based clustering.</li>
 </ul>
+<h3>AI Assist</h3>
+<p>Several tabs offer an optional AI Assist mode — Rule Validation, Device Review, Config-Delta, and Rule Review's Hygiene Analysis — plus an AI trend summary on the Admin page. All are off by default and gated by a single <strong>Admin → AI Assist</strong> toggle. In every case the AI only explains an already-computed result; it never decides a verdict, a check outcome, or a trend by itself — those are always computed deterministically first.</p>
 <h3>Status Colours</h3>
 <div class="help-status-list">
   <span class="status-dot green"></span> <span><strong>Green</strong> — device is reachable and all metrics are within normal thresholds.</span>
@@ -190,6 +193,8 @@ const SECTIONS = [
   <li>Filter by check type using the dropdown. Use the search box to find specific rule names or IDs.</li>
   <li>Export findings as <strong>CSV</strong>, <strong>JSON</strong>, or <strong>PDF</strong>. Each export includes a header block showing the package, ADOM, timestamp, and active filters.</li>
 </ul>
+<h3>AI Explain</h3>
+<p><em>If AI Assist is enabled (Admin → AI Assist):</em> expand any finding row and click <strong>Explain</strong> to get a plain-English explanation of why it matters plus a suggested FortiOS CLI remediation snippet — for that one finding only, never the whole result set. The snippet is a suggestion to review, not something the app applies for you.</p>
 `
   },
   {
@@ -282,6 +287,8 @@ const SECTIONS = [
 
 <h3>CSV &amp; JSON &amp; PDF Exports</h3>
 <p>CSV and JSON export all filtered rows with a metadata header. PDF exports only the selected (checked) rows and includes an evidence header: ADOM, date/time, devices reviewed, and checks run.</p>
+<h3>AI Summary</h3>
+<p><em>If AI Assist is enabled (Admin → AI Assist):</em> after a run completes, click <strong>Summarize with AI</strong> for a short plain-English summary of overall posture and which devices or checks need attention first. The same summary is added automatically to scheduled email/PDF reports when enabled.</p>
 `
   },
   {
@@ -314,6 +321,8 @@ const SECTIONS = [
 <p>If <code>policy_db.json</code> is present, each flow is also checked against the network segmentation policy. A <strong>ZONE POLICY BLOCKED</strong> warning appears if the segmentation policy prohibits the flow, even if the firewall rule would allow it.</p>
 <h3>CLI Snippets</h3>
 <p>For flows that need a new or modified rule, a <strong>FortiOS CLI snippet</strong> is generated that you can paste directly into a FortiGate CLI session.</p>
+<h3>AI Assist</h3>
+<p><em>If AI Assist is enabled (Admin → AI Assist):</em> an alternate single-request mode next to the bulk workflow above. Describe one change (source, destination, service, target firewalls, plus an optional ticket ID and justification) and get back the same kind of deterministic verdict as the bulk workflow — computed by the same engine, not the AI — plus an AI-written report and peer-review package. If the AI narration fails for any reason the deterministic verdict is still shown.</p>
 `
   },
   {
@@ -346,6 +355,35 @@ const SECTIONS = [
 <p>Click <strong>Run Validation</strong> to check the database for structural errors (invalid subnets, missing zone references, empty block-only service lists, etc.).</p>
 <h3>Edit Database (Admin only)</h3>
 <p>Admins can add, remove, or modify zones, subnets, and policy rules directly from this panel. Changes are written immediately to <code>policy_db.json</code>.</p>
+`
+  },
+  {
+    id:    'pending_changes',
+    label: 'Config-Delta',
+    tab:   'pending_changes',
+    html: `
+<h3>Config-Delta</h3>
+<p>Shows exactly which FortiOS CLI configuration lines will change on a device the next time an install is pushed to it — config that's already committed in FortiManager but not yet applied to the physical device. Everything on this tab is read-only; it triggers FortiManager's install-preview workflow but never pushes any configuration.</p>
+
+<h3>Workflow</h3>
+<ol>
+  <li>Select an <strong>ADOM</strong> — the device table loads, showing every device's current sync status.</li>
+  <li>Optionally filter by device name or IP, or check <strong>Pending only</strong> to show just the devices with outstanding changes.</li>
+  <li>Click any device row — the diff panel populates with a per-VDOM CLI diff.</li>
+  <li>Review the colour-coded diff: <strong>green</strong> lines are additions, <strong>red</strong> lines are deletions, <strong>amber</strong> lines are modifications.</li>
+  <li>Click <strong>+ Add to Export Queue</strong> to stage a device, then export the queue as CSV, JSON, or PDF for a change record.</li>
+</ol>
+
+<h3>Status Badges</h3>
+<ul>
+  <li><strong>Out of Sync</strong> — the device's running config has drifted from FortiManager; a re-install is required.</li>
+  <li><strong>Pending</strong> — FortiManager's database has changes not yet pushed to the device.</li>
+  <li><strong>Pkg Pending</strong> — the policy package was modified in FortiManager but not yet installed.</li>
+  <li><strong>In Sync</strong> — the device is fully in sync with FortiManager.</li>
+</ul>
+
+<h3>AI Summary</h3>
+<p><em>If AI Assist is enabled (Admin → AI Assist):</em> click <strong>Summarize with AI</strong> in the diff panel for a short plain-English description of what's actually changing — new/removed policies, address or service object changes, routing changes. The raw CLI diff is always shown unmodified alongside the summary. Scheduled export emails include the same summary automatically when enabled (see the <strong>Scheduled Jobs</strong> help section).</p>
 `
   },
   {
@@ -488,7 +526,10 @@ const SECTIONS = [
     label: 'Admin',
     html: `
 <h3>Administration Panel</h3>
-<p>Accessible to <strong>admin</strong> accounts only via the <strong>&#9881; Admin</strong> link in the navigation bar. Contains four sub-tabs: <strong>Groups &amp; Permissions</strong>, <strong>Scheduled</strong>, <strong>Map Region Colors</strong>, and <strong>Application Logs</strong>.</p>
+<p>Accessible to <strong>admin</strong> accounts only via the <strong>&#9881; Admin</strong> link in the navigation bar. Sub-tabs: <strong>Groups &amp; Permissions</strong>, <strong>Map Region Colors</strong>, <strong>External API</strong>, <strong>AI Assist</strong>, <strong>Scheduled</strong>, <strong>Backup</strong>, <strong>Zone Policy</strong>, and <strong>Application Logs</strong>.</p>
+
+<h3>Host Resource Graphs</h3>
+<p>Above the sub-tab bar, three graphs (CPU, Memory, Disk) show resource usage of the host running the app, sampled every 60 seconds. Use the range pills (1h / 4h / 12h / 1d / 7d / 14d) to zoom out. If AI Assist is enabled, a <strong>Generate AI Trend Summary</strong> button appears above the graphs — it computes 7-day trend statistics (percent change, slope, a days-to-threshold projection) deterministically, then has the AI phrase a short readable summary of anything that needs attention.</p>
 
 <h3>Groups &amp; Permissions</h3>
 <p>Groups control two things for non-admin users: which <strong>navigation tabs</strong> they can see and which <strong>ADOMs</strong> they can access.</p>
@@ -517,6 +558,18 @@ const SECTIONS = [
   <li><strong>Reassign states</strong> — use the multi-select in each row. Hold <strong>Ctrl</strong> (Windows/Linux) or <strong>Cmd</strong> (Mac) to select multiple states. A state can only belong to one region — selecting it here disables it in all other region lists.</li>
 </ul>
 <p>The <strong>Other</strong> row at the bottom controls the colour for any device in a state not assigned to a named region. Click <strong>Save</strong> to persist all changes — the map uses the new settings on the next page load. If all regions are deleted, every device falls back to the <em>Other</em> colour.</p>
+
+<h3>External API</h3>
+<p>Lets external programs query Zone Policy data over a bearer-token API, without a browser session. Disabled by default — check <strong>External API enabled</strong> and save to turn it on. Create tokens with <strong>+ New Token</strong>; the plaintext value is shown once and never again, so copy it immediately. Tokens can be revoked at any time. When disabled, every <code>/external/api/</code> request returns <code>503</code> regardless of token validity.</p>
+
+<h3>AI Assist</h3>
+<p>One <strong>ai_assist_enabled</strong> toggle turns on every AI feature in the app at once — Rule Validation's AI Assist, Device Review's AI Summary, Config-Delta's AI Summary, Rule Review's AI Explain, and the Admin AI Trend Summary. Off by default. This sub-tab also shows an AI usage/cost chart — every LLM call the app makes (which provider, how many tokens, estimated cost) is tracked here regardless of which feature triggered it.</p>
+
+<h3>Backup</h3>
+<p>Creates AES-256 encrypted ZIP backups of all runtime configuration. <strong>One-time backups</strong> download directly to your browser. <strong>Scheduled backups</strong> (daily/weekly/custom) run server-side and can optionally push the archive to a remote FTP or SFTP server. The backup password is shown once on first save, the same as API tokens — store it offline, it cannot be retrieved again. The last 20 local archives are kept automatically; older ones are pruned.</p>
+
+<h3>Zone Policy (Edit Database)</h3>
+<p>Admin-only zone policy database editing lives here rather than on the Zone Policy tab itself, so every write to <code>policy_db.json</code> is admin-gated in one place. Add, remove, or modify zones, subnets, and policy rules — changes are written back atomically and take effect immediately for every user on the Zone Policy tab.</p>
 
 <h3>Application Logs</h3>
 <p>An in-memory ring buffer showing up to 2,000 recent log entries (cleared on restart). Use the level and component filters to narrow results. Levels: TRACE → DEBUG → INFO → WARN → ERROR.</p>
