@@ -60,7 +60,7 @@ def record_usage(
                 "INSERT INTO ai_usage (timestamp, provider, model, input_tokens, "
                 "output_tokens, cost_usd, success, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    dt.datetime.now(dt.timezone.utc).isoformat(),
+                    dt.datetime.now(dt.UTC).isoformat(),
                     provider,
                     model,
                     input_tokens,

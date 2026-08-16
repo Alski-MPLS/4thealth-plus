@@ -82,7 +82,7 @@ def save_config(cfg: dict) -> None:
 
 def _make_filename() -> str:
     hostname = socket.gethostname().upper()
-    now = datetime.datetime.now()
+    now = datetime.datetime.now().astimezone()
     return f"{hostname}-BACKUP_{now.strftime('%Y-%m-%d_%H%M')}.zip"
 
 

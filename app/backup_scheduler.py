@@ -20,8 +20,8 @@ from typing import Any
 import paramiko
 
 from app import backup_engine
-from app.atomic_io import atomic_write_json
 from app.app_logger import app_log
+from app.atomic_io import atomic_write_json
 
 _CONFIG_PATH = Path(__file__).parent.parent / "backup_config.json"
 _lock = threading.Lock()
@@ -94,7 +94,10 @@ def create_job(data: dict) -> dict:
         "days_of_week": data["days_of_week"],
         "time": data["time"],
         "enabled": bool(data.get("enabled", True)),
-        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "created_at": datetime.datetime.now(datetime.UTC)
+        .replace(tzinfo=None)
+        .isoformat()
+        + "Z",
         "runs": [],
     }
     with _lock:
@@ -258,7 +261,9 @@ def test_connection(ftp_cfg: dict) -> dict:
 
 def _prune_runs(job_id: str, retention_days: int = 30) -> None:
     """Remove run records older than retention_days from the named job."""
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=retention_days)
+    cutoff = datetime.datetime.now(datetime.UTC).replace(
+        tzinfo=None
+    ) - datetime.timedelta(days=retention_days)
     with _lock:
         cfg = _load_cfg()
         for j in cfg.get("jobs", []):
@@ -289,7 +294,7 @@ def _try_acquire_job_lock(job_id: str):
     """Return an open file object with an exclusive fcntl lock, or None if busy."""
     lock_path = Path(tempfile.gettempdir()) / f"4thealth_backup_{job_id}.lock"
     try:
-        fh = open(lock_path, "w")
+        fh = open(lock_path, "w")  # noqa: SIM115 -- intentionally returned open as an advisory lock handle for the caller to close
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fh
     except OSError:
@@ -311,7 +316,9 @@ def _execute_job(job_id: str) -> None:
         )
         return
 
-    started_at = datetime.datetime.utcnow().isoformat() + "Z"
+    started_at = (
+        datetime.datetime.now(datetime.UTC).replace(tzinfo=None).isoformat() + "Z"
+    )
     _running_jobs.add(job_id)
     try:
         cfg = _load_cfg()

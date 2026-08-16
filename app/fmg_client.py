@@ -128,11 +128,9 @@ def _classify_lines(content: str) -> list:
         stripped = line.strip()
         if not stripped or stripped.startswith("==="):
             continue
-        if stripped.startswith("delete ") or stripped.startswith("unset "):
+        if stripped.startswith(("delete ", "unset ")):
             changes.append({"type": "remove", "line": line})
-        elif stripped.startswith("config ") or stripped.startswith("end"):
-            changes.append({"type": "modify", "line": line})
-        elif stripped.startswith("edit ") or stripped.startswith("next"):
+        elif stripped.startswith(("config ", "end", "edit ", "next")):
             changes.append({"type": "modify", "line": line})
         elif stripped.startswith("set "):
             changes.append({"type": "add", "line": line})
