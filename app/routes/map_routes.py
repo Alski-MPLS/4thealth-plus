@@ -1,8 +1,9 @@
 """Map — device location map routes."""
 
-from flask import Blueprint, render_template, jsonify, current_app
+from flask import Blueprint, current_app, jsonify, render_template
+
 from app import registry
-from app.decorators import tab_required, admin_required
+from app.decorators import admin_required, tab_required
 
 bp = Blueprint("map", __name__)
 
@@ -19,9 +20,10 @@ def map_page():
 @tab_required("map_view")
 def map_devices():
     """Return cached device location data."""
-    from app.map_cache import get_cached
-    from app.groups import get_allowed_adoms
     from flask import session
+
+    from app.groups import get_allowed_adoms
+    from app.map_cache import get_cached
 
     cached = get_cached()
     devices = cached.get("devices", [])

@@ -34,8 +34,10 @@ from app.planner.fetch import (
 from app.planner.insertion import _intf_scoped, plan_insertion
 from app.planner.matching import (
     PolicyMatcher,
-    _names as _ref_names,
     parse_service_request,
+)
+from app.planner.matching import (
+    _names as _ref_names,
 )
 from app.planner.models import (
     ChangePlan,
@@ -251,11 +253,14 @@ def _plan_firewall(
                 # unresolvable refs with no actual IP-range overlap. These are
                 # application-specific policies that have no real relationship
                 # to the requested destination IP.
-                if pol.get("dstaddr-negate", "disable") not in ("enable", 1, True):
-                    if not any(
-                        matcher.addr_ip_overlap(pol, "dstaddr", d) for d in flow.dsts
-                    ):
-                        continue
+                if pol.get("dstaddr-negate", "disable") not in (
+                    "enable",
+                    1,
+                    True,
+                ) and not any(
+                    matcher.addr_ip_overlap(pol, "dstaddr", d) for d in flow.dsts
+                ):
+                    continue
                 # Annotate which requested services aren't covered — engineers
                 # can see at a glance what the gap is without reading the policy.
                 svc_gap = matcher.uncovered_services(pol, flow.service_ranges)
@@ -569,9 +574,11 @@ def _group_append_alternative(
                                     pol.get("policyid", 0), key, member_names
                                 ),
                                 warnings=[
-                                    f"Adding {', '.join(member_names)} directly to rule "
-                                    f"#{pol.get('policyid', 0)} {side} address list — "
-                                    "only this rule is affected."
+                                    (
+                                        f"Adding {', '.join(member_names)} directly to rule "
+                                        f"#{pol.get('policyid', 0)} {side} address list — "
+                                        "only this rule is affected."
+                                    )
                                 ],
                             ),
                         )

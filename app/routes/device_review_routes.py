@@ -26,16 +26,18 @@ API (JSON, all read-only):
 """
 
 from __future__ import annotations
+
 import datetime
 
-from flask import Blueprint, render_template, session, jsonify, request
-from app.decorators import tab_required, check_adom_access
-from app.fmg_helpers import make_client
-from app.fmg_client import FMGError
-from app.device_review import run_checks, CHECKS_META, _CHECKS_BY_KEY
+from flask import Blueprint, jsonify, render_template, request, session
+
 from app import registry
-from app.security import internal_api_error, upstream_api_error
 from app.app_logger import app_log
+from app.decorators import check_adom_access, tab_required
+from app.device_review import _CHECKS_BY_KEY, CHECKS_META, run_checks
+from app.fmg_client import FMGError
+from app.fmg_helpers import make_client
+from app.security import internal_api_error, upstream_api_error
 
 bp = Blueprint("device_review", __name__)
 
@@ -370,7 +372,7 @@ def device_review_run():
         if _client_ctx is not None:
             _client_ctx.__exit__(None, None, None)
 
-    run_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    run_at = datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
     checks_run = (
         check_keys if check_keys is not None else [c["key"] for c in CHECKS_META]
     )
@@ -423,8 +425,8 @@ def dr_ai_summary():
             {"error": "results must be a list of device result objects"}
         ), 400
 
-    from app.device_review_scheduler import _build_check_summary
     from app.device_review_ai import build_narrative
+    from app.device_review_scheduler import _build_check_summary
 
     check_summary = _build_check_summary(results, checks)
 

@@ -12,7 +12,7 @@ Usage:
 
 import threading
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _LEVELS = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
 _LEVEL_RANK = {lvl: i for i, lvl in enumerate(_LEVELS)}
@@ -46,7 +46,7 @@ def app_log(level: str, component: str, message: str, **extra) -> None:
     if _LEVEL_RANK.get(level, 0) < _LEVEL_RANK.get(_current_level, 0):
         return
     entry = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
         "level": level,
         "component": component,
         "message": message,

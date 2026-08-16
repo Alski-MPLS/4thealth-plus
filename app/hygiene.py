@@ -13,9 +13,10 @@ CHECKS maps key -> display name.  Order here controls the dropdown order in the 
 """
 
 from __future__ import annotations
+
 import ipaddress
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 log = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def _rule_summary(p: dict) -> dict:
 def _covers(
     a_names: set[str],
     b_names: set[str],
-    resolver: "dict[str, frozenset | None] | None" = None,
+    resolver: dict[str, frozenset | None] | None = None,
 ) -> bool:
     """Return True if address/service set A fully covers set B.
 
@@ -283,8 +284,8 @@ def check_unlogged(policies: list[dict]) -> list[dict]:
 
 def check_shadow(
     policies: list[dict],
-    addr_resolver: "dict[str, frozenset | None] | None" = None,
-    svc_resolver: "dict[str, frozenset | None] | None" = None,
+    addr_resolver: dict[str, frozenset | None] | None = None,
+    svc_resolver: dict[str, frozenset | None] | None = None,
 ) -> list[dict]:
     """Flag rules that will never be hit because an earlier rule already matches
     every connection that could reach them.
@@ -393,7 +394,7 @@ def check_expired(policies: list[dict]) -> list[dict]:
     expiry' since we don't pull schedule objects here.
     """
     findings = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for idx, p in enumerate(policies):
         if _is_policy_block(p):
@@ -414,7 +415,7 @@ def check_expired(policies: list[dict]) -> list[dict]:
         parsed = None
         for fmt in ("%Y/%m/%d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d", "%Y-%m-%d"):
             try:
-                parsed = datetime.strptime(sched_str, fmt).replace(tzinfo=timezone.utc)
+                parsed = datetime.strptime(sched_str, fmt).replace(tzinfo=UTC)
                 break
             except ValueError:
                 continue
@@ -503,8 +504,8 @@ def run_checks(
     policies: list[dict],
     checks: list[str],
     pkg_settings: dict | None = None,
-    addr_resolver: "dict[str, frozenset | None] | None" = None,
-    svc_resolver: "dict[str, frozenset | None] | None" = None,
+    addr_resolver: dict[str, frozenset | None] | None = None,
+    svc_resolver: dict[str, frozenset | None] | None = None,
 ) -> list[dict]:
     """Run the requested checks against the policy list.  Returns combined findings."""
     results = []

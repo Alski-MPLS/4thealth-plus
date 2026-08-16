@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import smtplib
 import threading
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from pathlib import Path
 
 from app.atomic_io import atomic_write_json

@@ -35,13 +35,13 @@ params_schema — list of input descriptors that the UI should render before a
 """
 
 from __future__ import annotations
+
 import functools
 import ipaddress
 import logging as _logging
 import pathlib as _pathlib
 import socket
 from typing import Any
-
 
 # ── Protocol security classification ─────────────────────────────────────────
 

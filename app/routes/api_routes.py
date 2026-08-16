@@ -4,9 +4,10 @@ import json
 import re
 
 from flask import Blueprint, Response, jsonify, request, session, stream_with_context
-from app.fmg_client import FMGClient, FMGError, PROXY_ENDPOINTS
+
 from app.config import Config
-from app.decorators import tab_required, admin_required, check_adom_access
+from app.decorators import admin_required, check_adom_access, tab_required
+from app.fmg_client import PROXY_ENDPOINTS, FMGClient, FMGError
 from app.fmg_helpers import make_client as _make_client
 from app.security import internal_api_error, upstream_api_error
 
@@ -175,9 +176,11 @@ def summary_history():
 @tab_required("dashboard")
 def summary_refresh():
     """Kick off an immediate recalculation in the background."""
-    from flask import current_app
-    from app import summary_job
     import threading
+
+    from flask import current_app
+
+    from app import summary_job
 
     t = threading.Thread(
         target=summary_job._run_job,
@@ -398,7 +401,7 @@ def all_devices():
 def all_devices_refresh():
     """Trigger a manual cache refresh (non-blocking — returns immediately)."""
     from app import current_app
-    from app.versions_cache import refresh_now, get_cached
+    from app.versions_cache import get_cached, refresh_now
 
     refresh_now(current_app._get_current_object())
     cached = get_cached()
@@ -424,6 +427,7 @@ def adoms():
         ]
         # Filter to ADOMs the current user is allowed to see
         from flask import session as _session
+
         from app.groups import get_allowed_adoms
 
         allowed = get_allowed_adoms(

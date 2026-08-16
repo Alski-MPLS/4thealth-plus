@@ -12,12 +12,13 @@ API (JSON, all read-only):
 
 import ipaddress
 
-from flask import Blueprint, render_template, session, jsonify, request
-from app.decorators import tab_required, check_adom_access
-from app.fmg_helpers import make_client
-from app.fmg_client import FMGError
-from app.hygiene import run_checks, CHECKS, _status, _action
+from flask import Blueprint, jsonify, render_template, request, session
+
 from app import registry
+from app.decorators import check_adom_access, tab_required
+from app.fmg_client import FMGError
+from app.fmg_helpers import make_client
+from app.hygiene import CHECKS, _action, _status, run_checks
 from app.security import internal_api_error, upstream_api_error
 
 bp = Blueprint("hygiene", __name__)

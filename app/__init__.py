@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, session
 from werkzeug.exceptions import RequestEntityTooLarge
+
 from app.config import Config
 from app.security import csrf_error_response, ensure_csrf_token, validate_csrf_request
 
@@ -87,8 +88,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     # Sync KNOWN_TABS from the registry so groups.py and the Admin UI
     # always reflect whatever tabs are currently registered.
-    from app import registry
-    from app import groups
+    from app import groups, registry
 
     groups.KNOWN_TABS = registry.known_tabs()
 

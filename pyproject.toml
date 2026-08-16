@@ -26,8 +26,17 @@ prod = ["gunicorn>=22"]
 [tool.uv]
 package = false
 
+[tool.ruff.lint]
+# BLE001/S110/S112: this codebase relies heavily and deliberately on broad
+# "catch, log, degrade gracefully" exception handling — background scheduler
+# startup that must never crash the app, best-effort usage/metrics tracking,
+# cleanup code that must not fail the caller, narration/AI calls that must
+# always fall back to a deterministic result. Narrowing these to specific
+# exception types would defeat the point of that pattern, not improve it.
+ignore = ["BLE001", "S110", "S112"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.15.16",
+    "ruff>=0.16.2",
 ]
