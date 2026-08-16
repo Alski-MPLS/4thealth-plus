@@ -15,13 +15,13 @@ dependencies = [
     "paramiko>=5.0.0",
     "pyyaml>=6.0.3",
     "anthropic>=0.121.0",
-    "openai>=1.0",
+    "openai>=3.0.0",
     "scp>=0.16.1",
     "psutil>=7.2.2",
 ]
 
 [project.optional-dependencies]
-prod = ["gunicorn>=22"]
+prod = ["gunicorn>=26.0.0"]
 
 [tool.uv]
 package = false
