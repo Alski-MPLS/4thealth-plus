@@ -11,7 +11,7 @@ from __future__ import annotations
 from app.config import Config
 from app.llm.base import LLMError, LLMProvider
 
-__all__ = ["get_provider", "LLMError", "LLMProvider"]
+__all__ = ["LLMError", "LLMProvider", "get_provider"]
 
 
 def get_provider() -> LLMProvider:

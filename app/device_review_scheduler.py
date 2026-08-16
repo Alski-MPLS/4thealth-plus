@@ -17,8 +17,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from app.atomic_io import atomic_write_json
 from app.app_logger import app_log
+from app.atomic_io import atomic_write_json
 
 _JOBS_PATH = Path(__file__).parent.parent / "device_review_jobs.json"
 _lock = threading.Lock()
@@ -165,7 +165,9 @@ def is_job_running(job_id: str) -> bool:
 
 
 def _prune_runs(job_id: str, retention_days: int = 30) -> None:
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=retention_days)
+    cutoff = datetime.datetime.now(datetime.UTC).replace(
+        tzinfo=None
+    ) - datetime.timedelta(days=retention_days)
     with _lock:
         jobs = _load()
         for job in jobs:
@@ -194,7 +196,7 @@ def _append_run(job_id: str, record: dict) -> None:
 def _try_acquire_job_lock(job_id: str):
     lock_path = Path(tempfile.gettempdir()) / f"4thealth_dr_{job_id}.lock"
     try:
-        fh = open(lock_path, "w")
+        fh = open(lock_path, "w")  # noqa: SIM115 -- intentionally returned open as an advisory lock handle for the caller to close
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fh
     except OSError:
@@ -244,7 +246,10 @@ def _execute_job(job_id: str) -> None:
         fail_count = sum(1 for r in all_rows if r.get("result") in ("FAIL", "INSECURE"))
 
         record: dict[str, Any] = {
-            "ran_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "ran_at": datetime.datetime.now(datetime.UTC)
+            .replace(tzinfo=None)
+            .isoformat()
+            + "Z",
             "status": "ok",
             "devices_total": len(results),
             "devices_reviewed": sum(1 for d in results if not d.get("error")),
@@ -283,7 +288,10 @@ def _execute_job(job_id: str) -> None:
 
     except Exception as exc:
         record = {
-            "ran_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "ran_at": datetime.datetime.now(datetime.UTC)
+            .replace(tzinfo=None)
+            .isoformat()
+            + "Z",
             "status": "error",
             "error": str(exc),
         }

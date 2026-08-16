@@ -17,21 +17,20 @@ import datetime
 import threading
 
 from flask import Flask
-
 from pysnmp.hlapi.v3arch.asyncio import (
-    SnmpEngine,
-    UsmUserData,
-    UdpTransportTarget,
-    ContextData,
-    ObjectType,
-    ObjectIdentity,
-    get_cmd,
     USM_AUTH_HMAC96_SHA,
     USM_AUTH_HMAC192_SHA256,
     USM_AUTH_HMAC384_SHA512,
     USM_PRIV_CFB128_AES,
     USM_PRIV_CFB192_AES,
     USM_PRIV_CFB256_AES,
+    ContextData,
+    ObjectIdentity,
+    ObjectType,
+    SnmpEngine,
+    UdpTransportTarget,
+    UsmUserData,
+    get_cmd,
 )
 
 from app.config import Config
@@ -136,7 +135,7 @@ async def _snmp_get(host: str, oids: list[str], creds: dict) -> list[float]:
 
 
 def _now() -> str:
-    return datetime.datetime.now().isoformat(timespec="seconds")
+    return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
 
 
 def _poll_target(target: dict) -> dict | None:

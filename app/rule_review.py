@@ -13,8 +13,6 @@ more FortiGate policy packages, then determines:
 from __future__ import annotations
 
 import ipaddress
-from typing import Optional
-
 
 # ── Zone policy integration ───────────────────────────────────────────────────
 # Uses app.zone_db — the embedded segmentation policy engine that reads
@@ -432,8 +430,8 @@ def check_path_relevance(
                 best_name = iface_name
         return best_name, best_prefix
 
-    src_iface, src_prefix = best_iface_match(src)
-    dst_iface, dst_prefix = best_iface_match(dst)
+    src_iface, _src_prefix = best_iface_match(src)
+    dst_iface, _dst_prefix = best_iface_match(dst)
 
     if src_iface:
         result["src_iface"] = src_iface
@@ -443,7 +441,7 @@ def check_path_relevance(
         result["dst_reachable"] = True
 
     # Route table lookup
-    def best_route(addr: str) -> Optional[dict]:
+    def best_route(addr: str) -> dict | None:
         addr_part = addr.split("/")[0]
         try:
             target_ip = ipaddress.ip_address(addr_part)
@@ -544,7 +542,7 @@ def check_path_relevance(
 
 
 def _fortios_cli(
-    device_name: str, pkg_path: str, flow: dict, insert_after: Optional[int] = None
+    device_name: str, pkg_path: str, flow: dict, insert_after: int | None = None
 ) -> str:
     src = flow.get("src", "any")
     dst = flow.get("dst", "any")
@@ -585,7 +583,7 @@ def analyze_flows(
     addr_groups: list,
     svc_objects: list,
     svc_groups: list,
-    routing_by_device: Optional[dict[str, dict]] = None,
+    routing_by_device: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Analyse each requested flow against the selected policy packages.
 
@@ -681,7 +679,7 @@ def analyze_flows(
 
             matching: list[dict] = []
             modifiable: list[dict] = []
-            last_permit_seq: Optional[int] = None
+            last_permit_seq: int | None = None
 
             for idx, pol in enumerate(policies):
                 if not isinstance(pol, dict):

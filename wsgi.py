@@ -1,6 +1,8 @@
 import os
-from app import create_app
+
 from dotenv import load_dotenv
+
+from app import create_app
 
 load_dotenv()
 
@@ -11,7 +13,9 @@ try:
 except ValueError:
     import logging as _logging
 
-    _logging.warning("TRUSTED_PROXY_COUNT is not a valid integer; ProxyFix not applied")
+    _logging.getLogger(__name__).warning(
+        "TRUSTED_PROXY_COUNT is not a valid integer; ProxyFix not applied"
+    )
     _proxy_count = 0
 if _proxy_count > 0:
     from werkzeug.middleware.proxy_fix import ProxyFix

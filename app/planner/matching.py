@@ -34,14 +34,14 @@ class PortRange:
     start: int
     end: int
 
-    def _proto_compatible(self, other: "PortRange") -> bool:
+    def _proto_compatible(self, other: PortRange) -> bool:
         return (
             self.protocol in _WILDCARD_PROTOCOLS
             or other.protocol in _WILDCARD_PROTOCOLS
             or self.protocol == other.protocol
         )
 
-    def contains(self, other: "PortRange") -> bool:
+    def contains(self, other: PortRange) -> bool:
         if not self._proto_compatible(other):
             return False
         if self.protocol in _WILDCARD_PROTOCOLS:
@@ -50,7 +50,7 @@ class PortRange:
             return False
         return self.start <= other.start and other.end <= self.end
 
-    def overlaps(self, other: "PortRange") -> bool:
+    def overlaps(self, other: PortRange) -> bool:
         if not self._proto_compatible(other):
             return False
         if (

@@ -14,7 +14,7 @@ get_history()                   — return list of {date, firewalls, rules} dict
 import json
 import logging
 import threading
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,16 @@ def _prune(records: list[dict]) -> list[dict]:
     seen: dict[str, dict] = {}
     for r in records:
         seen[r["date"]] = r
-    cutoff = (date.today() - timedelta(days=_MAX_DAYS - 1)).isoformat()
+    cutoff = (
+        datetime.now().astimezone().date() - timedelta(days=_MAX_DAYS - 1)
+    ).isoformat()
     kept = [r for d_str, r in seen.items() if d_str >= cutoff]
     return sorted(kept, key=lambda r: r["date"])
 
 
 def record_today(firewalls: int, rules: int) -> None:
     """Write today's entry, overwriting any existing entry for today."""
-    today = date.today().isoformat()
+    today = datetime.now().astimezone().date().isoformat()
     with _lock:
         records = _load()
         records = [r for r in records if r["date"] != today]

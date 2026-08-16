@@ -26,8 +26,8 @@ from flask import Blueprint, jsonify, request
 
 import app.zone_db as zdb
 from app.api_tokens import validate_token
-from app.app_settings import get_setting
 from app.app_logger import app_log
+from app.app_settings import get_setting
 from app.security import internal_api_error
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")

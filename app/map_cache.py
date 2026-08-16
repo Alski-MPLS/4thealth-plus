@@ -13,10 +13,10 @@ _store["adom_progress"] dict       — {adom: "ok"|"running"|"pending"}
 """
 
 import logging
+import os
 import threading
 import time as _time
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -170,12 +170,12 @@ def _run_job(app):
 
         with _lock:
             _store["devices"] = result
-            _store["last_updated"] = datetime.now(timezone.utc).isoformat()
+            _store["last_updated"] = datetime.now(UTC).isoformat()
             _store["status"] = "ok"
             _store["error"] = None
 
     except Exception as exc:
-        logger.exception("map_cache: unhandled error: %s", exc)
+        logger.exception("map_cache: unhandled error")
         with _lock:
             _store["status"] = "error"
             _store["error"] = str(exc)

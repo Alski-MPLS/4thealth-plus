@@ -184,8 +184,7 @@ def ancestor_zones(zone_name: str, zones: dict) -> list[str]:
             continue
         visited.add(current)
         result.append(current)
-        for parent in zones.get(current, {}).get("parents", []):
-            queue.append(parent)
+        queue.extend(zones.get(current, {}).get("parents", []))
     return result
 
 
