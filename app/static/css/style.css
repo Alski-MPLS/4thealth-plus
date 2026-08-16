@@ -2802,26 +2802,31 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
 }
-.hm-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 100px;
-}
-.hm-bar-wrap {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  min-width: 2px;
-}
-.hm-bar {
+.hm-svg-wrap { height: 100px; }
+.hm-svg {
   width: 100%;
-  background: var(--primary);
-  border-radius: 2px 2px 0 0;
-  min-height: 2px;
-  transition: height .15s ease;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
+.hm-area {
+  fill: var(--primary);
+  opacity: .12;
+}
+.hm-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.hm-dot {
+  fill: var(--primary);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.hm-svg:hover .hm-dot { opacity: 1; }
 .hm-axis {
   display: flex;
   gap: 2px;

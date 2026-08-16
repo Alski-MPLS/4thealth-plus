@@ -851,27 +851,47 @@
       : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 
+  const HM_VB_W = 300;
+  const HM_VB_H = 100;
+
   function renderHmChart(el, series, showDate) {
     if (!series.length) {
       el.innerHTML = '<div class="text-muted" style="padding:1rem 0">No data yet.</div>';
       return;
     }
-    const bars = series.map(p => {
-      const v = p.v == null ? 0 : Math.max(0, Math.min(100, p.v));
-      const title = `${hmAxisLabel(p.ts, true)}: ${p.v == null ? '—' : v.toFixed(1) + '%'}`;
-      return `<div class="hm-bar-wrap" title="${esc(title)}">
-        <div class="hm-bar" style="height:${v}%"></div>
-      </div>`;
+    const n = series.length;
+    const vals = series.map(p => p.v == null ? null : Math.max(0, Math.min(100, p.v)));
+    const xAt = i => n === 1 ? HM_VB_W / 2 : (i / (n - 1)) * HM_VB_W;
+    const yAt = v => HM_VB_H - (v / 100) * HM_VB_H;
+
+    const pts = vals.map((v, i) => v == null ? null : `${xAt(i).toFixed(2)},${yAt(v).toFixed(2)}`);
+    const linePts = pts.filter(p => p !== null).join(' ');
+    const areaPts = linePts
+      ? `0,${HM_VB_H} ${linePts} ${HM_VB_W},${HM_VB_H}`
+      : '';
+
+    const dots = vals.map((v, i) => {
+      if (v == null) return '';
+      const title = `${hmAxisLabel(series[i].ts, true)}: ${v.toFixed(1)}%`;
+      return `<circle class="hm-dot" cx="${xAt(i).toFixed(2)}" cy="${yAt(v).toFixed(2)}" r="1.6">
+        <title>${esc(title)}</title>
+      </circle>`;
     }).join('');
 
+    const svg = `<svg class="hm-svg" viewBox="0 0 ${HM_VB_W} ${HM_VB_H}" preserveAspectRatio="none">
+      ${areaPts ? `<polygon class="hm-area" points="${areaPts}"></polygon>` : ''}
+      ${linePts ? `<polyline class="hm-line" points="${linePts}"></polyline>` : ''}
+      ${dots}
+    </svg>`;
+
     const tickIdxs = [...new Set([0, 0.25, 0.5, 0.75, 1].map(f =>
-      Math.min(series.length - 1, Math.round(f * (series.length - 1)))
+      Math.min(n - 1, Math.round(f * (n - 1)))
     ))];
     const axis = series.map((p, i) =>
       `<div class="hm-tick">${tickIdxs.includes(i) ? esc(hmAxisLabel(p.ts, showDate)) : ''}</div>`
     ).join('');
 
-    el.innerHTML = `<div class="hm-bars">${bars}</div><div class="hm-axis">${axis}</div>`;
+    el.innerHTML = `<div class="hm-svg-wrap">${svg}</div><div class="hm-axis">${axis}</div>`;
   }
 
   async function loadHostMetrics(range) {
