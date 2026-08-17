@@ -745,6 +745,8 @@ async function checkAiAssistAvailable() {
     if (!data.available) {
       document.getElementById('rrAiDisabledNotice').style.display = '';
       document.getElementById('rrAiSubmitBtn').disabled = true;
+      const fqdnSubmit = document.getElementById('rrAiFqdnSubmitBtn');
+      if (fqdnSubmit) fqdnSubmit.disabled = true;
     }
   } catch (e) {
     // Non-fatal — the form's own submit handler will surface any real error.
@@ -907,4 +909,207 @@ function downloadAiPackage() {
 document.getElementById('rrAiForm')?.addEventListener('submit', runAiAssist);
 document.getElementById('rrAiCopyBtn')?.addEventListener('click', copyAiCli);
 document.getElementById('rrAiDownloadBtn')?.addEventListener('click', downloadAiPackage);
+
+// ── AI Assist: FQDN Allowlist mode ───────────────────────────────────────
+
+function switchAiMode(mode) {
+  const singleForm = document.getElementById('rrAiForm');
+  const fqdnForm = document.getElementById('rrAiFqdnForm');
+  const singleBtn = document.getElementById('rrAiModeSingle');
+  const fqdnBtn = document.getElementById('rrAiModeFqdn');
+  const singleResult = document.getElementById('rrAiResult');
+  const fqdnResult = document.getElementById('rrAiFqdnResult');
+
+  if (mode === 'fqdn') {
+    singleForm.style.display = 'none';
+    fqdnForm.style.display = '';
+    singleBtn.classList.replace('btn-primary', 'btn-secondary');
+    fqdnBtn.classList.replace('btn-secondary', 'btn-primary');
+    singleResult.style.display = 'none';
+  } else {
+    singleForm.style.display = '';
+    fqdnForm.style.display = 'none';
+    fqdnBtn.classList.replace('btn-primary', 'btn-secondary');
+    singleBtn.classList.replace('btn-secondary', 'btn-primary');
+    fqdnResult.style.display = 'none';
+  }
+}
+
+document.getElementById('rrAiModeSingle')?.addEventListener('click', () => switchAiMode('single'));
+document.getElementById('rrAiModeFqdn')?.addEventListener('click', () => switchAiMode('fqdn'));
+
+function addFqdnRow() {
+  const tbody = document.getElementById('rrAiFqdnRows');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="fqdn-row-fqdn" placeholder="*.push.apple.com"></td>
+    <td><input type="text" class="fqdn-row-ports" placeholder="443, 5223" style="width:6rem"></td>
+    <td>
+      <select class="fqdn-row-protocol">
+        <option value="TCP">TCP</option>
+        <option value="UDP">UDP</option>
+      </select>
+    </td>
+    <td><input type="checkbox" class="fqdn-row-required" checked></td>
+    <td><input type="text" class="fqdn-row-comment" placeholder="Optional"></td>
+    <td><button type="button" class="btn btn-sm fqdn-row-remove">&times;</button></td>
+  `;
+  tr.querySelector('.fqdn-row-remove').addEventListener('click', () => tr.remove());
+  tbody.appendChild(tr);
+}
+
+document.getElementById('rrAiFqdnAddRowBtn')?.addEventListener('click', addFqdnRow);
+
+function collectFqdnRows() {
+  return Array.from(document.querySelectorAll('#rrAiFqdnRows tr')).map(tr => ({
+    fqdn: tr.querySelector('.fqdn-row-fqdn').value.trim(),
+    ports: tr.querySelector('.fqdn-row-ports').value.split(',').map(p => p.trim()).filter(Boolean).map(Number),
+    protocol: tr.querySelector('.fqdn-row-protocol').value,
+    required: tr.querySelector('.fqdn-row-required').checked,
+    comment: tr.querySelector('.fqdn-row-comment').value.trim(),
+  })).filter(e => e.fqdn);
+}
+
+// Firewall typeahead — reuses the same aiDeviceCache/loadAiDeviceCache as the single-change form.
+function renderFqdnFirewallSuggestions(matches) {
+  const list = document.getElementById('rrAiFqdnFirewallSuggestions');
+  if (!matches.length) {
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = matches.slice(0, 8).map((m, i) =>
+    `<li data-idx="${i}">${esc(m.device)} <span class="rr-suggestion-adom">${esc(m.adom)}</span></li>`
+  ).join('');
+  list.style.display = '';
+}
+
+async function onFqdnFirewallInput(evt) {
+  const input = evt.target;
+  const token = activeFirewallToken(input);
+  if (!token.text || token.text.includes(':')) {
+    renderFqdnFirewallSuggestions([]);
+    return;
+  }
+  const devices = await loadAiDeviceCache();
+  const q = token.text.toLowerCase();
+  const matches = devices.filter(d =>
+    d.device.toLowerCase().includes(q) || d.adom.toLowerCase().includes(q)
+  );
+  if (activeFirewallToken(input).text.toLowerCase() !== q) return;
+  renderFqdnFirewallSuggestions(matches);
+  document.getElementById('rrAiFqdnFirewallSuggestions').querySelectorAll('li').forEach(li => {
+    li.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      applyFirewallSuggestion(input, matches[Number(li.dataset.idx)]);
+    });
+  });
+}
+
+document.getElementById('rrAiFqdnFirewalls')?.addEventListener('input', onFqdnFirewallInput);
+document.getElementById('rrAiFqdnFirewalls')?.addEventListener('focus', loadAiDeviceCache);
+document.getElementById('rrAiFqdnFirewalls')?.addEventListener('blur', () => {
+  setTimeout(() => renderFqdnFirewallSuggestions([]), 150);
+});
+
+async function runFqdnAiAssist(evt) {
+  evt.preventDefault();
+  const errEl = document.getElementById('rrAiFqdnError');
+  const resultEl = document.getElementById('rrAiFqdnResult');
+  const runningEl = document.getElementById('rrAiFqdnRunning');
+  errEl.style.display = 'none';
+  resultEl.style.display = 'none';
+  runningEl.style.display = '';
+
+  const srcIp = document.getElementById('rrAiFqdnSrc').value.trim();
+  const ticketId = document.getElementById('rrAiFqdnTicket').value.trim();
+  const firewalls = parseAiFirewalls(document.getElementById('rrAiFqdnFirewalls').value);
+  const fileInput = document.getElementById('rrAiFqdnFile');
+  const file = fileInput.files[0];
+
+  try {
+    let resp;
+    if (file) {
+      const fd = new FormData();
+      fd.append('src_ip', srcIp);
+      fd.append('ticket_id', ticketId);
+      fd.append('firewalls', JSON.stringify(firewalls));
+      fd.append('file', file);
+      resp = await fetch('/api/rule-review/ai-assist-fqdn', { method: 'POST', body: fd });
+    } else {
+      const payload = {
+        vendor: document.getElementById('rrAiFqdnVendor').value.trim(),
+        category: document.getElementById('rrAiFqdnCategory').value.trim(),
+        src_ip: srcIp,
+        ticket_id: ticketId,
+        firewalls,
+        entries: collectFqdnRows(),
+      };
+      resp = await fetch('/api/rule-review/ai-assist-fqdn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    const data = await resp.json();
+    runningEl.style.display = 'none';
+    if (!resp.ok) {
+      errEl.textContent = data.error || `Request failed (${resp.status})`;
+      errEl.style.display = '';
+      return;
+    }
+    renderFqdnAiResult(data);
+  } catch (e) {
+    runningEl.style.display = 'none';
+    errEl.textContent = 'Request failed: ' + e.message;
+    errEl.style.display = '';
+  }
+}
+
+function renderFqdnAiResult(data) {
+  const plan = data.plan;
+
+  const warningsEl = document.getElementById('rrAiFqdnWarnings');
+  const warnings = plan.warnings || [];
+  if (warnings.length) {
+    warningsEl.innerHTML = '<strong>Warnings:</strong><ul>' +
+      warnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>';
+    warningsEl.style.display = '';
+  } else {
+    warningsEl.innerHTML = '';
+    warningsEl.style.display = 'none';
+  }
+
+  const perFwEl = document.getElementById('rrAiFqdnPerFirewall');
+  perFwEl.innerHTML = (plan.per_firewall || []).map(fw => {
+    const objCli = (fw.proposed_objects || []).map(o => o.cli).join('\n\n');
+    const groupCli = fw.proposed_group ? fw.proposed_group.cli : '';
+    const policyCli = fw.proposed_policy ? fw.proposed_policy.cli : '';
+    const cliBlock = [objCli, groupCli, policyCli].filter(Boolean).join('\n\n');
+    return `
+      <div class="rr-section" style="margin-top:1rem">
+        <h3>${esc(fw.firewall)} <span class="rr-zone-badge">${esc(fw.verdict)}</span></h3>
+        <div>Coverage: ${esc(fw.coverage)}</div>
+        ${fw.warnings && fw.warnings.length ? '<ul>' + fw.warnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>' : ''}
+        ${cliBlock ? `<pre class="rr-cli-block">${esc(cliBlock)}</pre>` : '<div class="text-muted">No new configuration required.</div>'}
+      </div>
+    `;
+  }).join('');
+
+  const narrEl = document.getElementById('rrAiFqdnNarrative');
+  const narrErrEl = document.getElementById('rrAiFqdnNarrativeError');
+  if (data.narrative) {
+    narrEl.textContent = data.narrative;
+    narrErrEl.style.display = 'none';
+  } else {
+    narrEl.textContent = '';
+    narrErrEl.textContent = 'AI summary unavailable: ' + (data.narrative_error || 'unknown error');
+    narrErrEl.style.display = '';
+  }
+
+  document.getElementById('rrAiFqdnResult').style.display = '';
+}
+
+document.getElementById('rrAiFqdnForm')?.addEventListener('submit', runFqdnAiAssist);
+
 checkAiAssistAvailable();
