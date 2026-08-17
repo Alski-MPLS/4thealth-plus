@@ -655,3 +655,78 @@ def test_plan_fqdn_change_generated_cli_has_no_injected_statements():
     grp_lines = [ln.strip() for ln in fw.proposed_group.cli.splitlines()]
     assert len([ln for ln in grp_lines if ln.startswith("edit ")]) == 1
     assert "config system admin" not in grp_lines
+
+
+# ── Finding 4b: 'all' source must be warned about ──────────────────────────
+
+@pytest.mark.parametrize("src_ip", ["", "any", "all", "ANY", "  All  "])
+def test_plan_fqdn_change_warns_when_source_is_builtin_all(src_ip):
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip=src_ip, ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+    )
+    plan = plan_fqdn_change(
+        req, fmg_client=_fqdn_fmg_base(), zone_client=_fqdn_zone_client()
+    )
+    fw = plan.per_firewall[0]
+
+    assert fw.proposed_policy["srcaddr"] == ["all"]
+    assert any(
+        "permit traffic from ANY source" in w for w in fw.warnings
+    ), fw.warnings
+
+
+def test_plan_fqdn_change_no_all_source_warning_for_specific_ip():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+    )
+    plan = plan_fqdn_change(
+        req, fmg_client=_fqdn_fmg_base(), zone_client=_fqdn_zone_client()
+    )
+    fw = plan.per_firewall[0]
+
+    assert not any("permit traffic from ANY source" in w for w in fw.warnings)
+
+
+# ── Finding 8: group-append alternative carries no blast radius ────────────
+
+def test_fqdn_group_append_alternative_warns_blast_radius_not_computed():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    covered_fqdn = "covered.vendor.com"
+    uncovered_fqdn = "new.vendor.com"
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=covered_fqdn), _fqdn_entry(fqdn=uncovered_fqdn)],
+    )
+    fake_fmg = _fqdn_fmg_base(
+        address_objects=[
+            {"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": covered_fqdn},
+        ],
+        address_groups=[
+            {"name": "GRP-Vendor-Co-API-DST", "member": ["FQDN-covered.vendor.com"]},
+        ],
+        policies=[{
+            "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
+            "dstaddr": ["GRP-Vendor-Co-API-DST"], "srcaddr": [], "service": [],
+        }],
+    )
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=_fqdn_zone_client())
+    alt = plan.per_firewall[0].group_append_alternative
+
+    assert alt is not None
+    # affected_policies is empty because it is not computed on this path — the
+    # warning is what stops that from reading as "no other policies affected".
+    assert alt.affected_policies == []
+    assert any("Blast radius not computed" in w for w in alt.warnings), alt.warnings
+    assert any("GRP-Vendor-Co-API-DST" in w for w in alt.warnings)

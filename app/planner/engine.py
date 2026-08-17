@@ -1315,12 +1315,26 @@ def _plan_fqdn_firewall(
             group=partial["group_name"],
             members=[],
             group_cli=cli_gen.addrgrp_append_cli(partial["group_name"], new_names),
+            # Unlike the IP/CIDR planner's group-append path, the FQDN path
+            # does not compute the set of other policies referencing this
+            # group. Say so explicitly rather than letting an empty
+            # affected_policies list read as "blast radius is zero".
+            warnings=[
+                f"Blast radius not computed for this alternative — appending to "
+                f"{partial['group_name']!r} affects every other policy that "
+                f"references it, directly or via group nesting. Verify manually "
+                f"before appending."
+            ],
         )
 
     # Source address object — 'all'/'any' maps to FortiGate built-in; named objects reused as-is
     if request.src_ip.strip().lower() in ("any", "all", ""):
         src_obj = ObjectPlan(role="source", action="reuse", name="all",
                              obj_type="builtin", value="all")
+        fw.warnings.append(
+            "Source resolves to the FortiGate built-in 'all' object — this policy "
+            "will permit traffic from ANY source. Confirm this is intended."
+        )
     elif not _is_valid_ip(request.src_ip):
         src_obj = ObjectPlan(role="source", action="reuse", name=request.src_ip,
                              obj_type="named_object", value=request.src_ip)

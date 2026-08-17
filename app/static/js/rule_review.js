@@ -1072,9 +1072,24 @@ function renderFqdnAiResult(data) {
 
   const warningsEl = document.getElementById('rrAiFqdnWarnings');
   const warnings = plan.warnings || [];
+  const intakeWarnings = plan.intake_warnings || [];
+  const missingFields = plan.intake_missing_fields || [];
+  const blocks = [];
   if (warnings.length) {
-    warningsEl.innerHTML = '<strong>Warnings:</strong><ul>' +
-      warnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>';
+    blocks.push('<strong>Warnings:</strong><ul>' +
+      warnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>');
+  }
+  if (intakeWarnings.length) {
+    blocks.push('<strong>Intake warnings (rows skipped or adjusted while ' +
+      'parsing your entries):</strong><ul>' +
+      intakeWarnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>');
+  }
+  if (missingFields.length) {
+    blocks.push('<strong>Missing required fields:</strong><ul>' +
+      missingFields.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>');
+  }
+  if (blocks.length) {
+    warningsEl.innerHTML = blocks.join('');
     warningsEl.style.display = '';
   } else {
     warningsEl.innerHTML = '';
@@ -1083,10 +1098,17 @@ function renderFqdnAiResult(data) {
 
   const perFwEl = document.getElementById('rrAiFqdnPerFirewall');
   perFwEl.innerHTML = (plan.per_firewall || []).map(fw => {
-    const objCli = (fw.proposed_objects || []).map(o => o.cli).join('\n\n');
-    const groupCli = fw.proposed_group ? fw.proposed_group.cli : '';
-    const policyCli = fw.proposed_policy ? fw.proposed_policy.cli : '';
-    const cliBlock = [objCli, groupCli, policyCli].filter(Boolean).join('\n\n');
+    const pol = fw.proposed_policy || {};
+    // Order: every new address/service object first (the policy references
+    // them by name, so they must exist before it is created), then the
+    // destination group, then the policy itself.
+    const cliBlock = [
+      ...(fw.proposed_objects || []).map(o => o.cli),
+      pol.src_object_cli || '',
+      ...(pol.service_object_cli_blocks || []),
+      fw.proposed_group ? fw.proposed_group.cli : '',
+      pol.cli || '',
+    ].filter(Boolean).join('\n\n');
     return `
       <div class="rr-section" style="margin-top:1rem">
         <h3>${esc(fw.firewall)} <span class="rr-zone-badge">${esc(fw.verdict)}</span></h3>

@@ -159,3 +159,174 @@ def test_ai_assist_fqdn_adom_denial_short_circuits_before_fmg_work(client):
 
     assert resp.status_code == 403
     mock_make_client.assert_not_called()
+
+
+# ── Finding 2: JSON branch routes through the shared parser ────────────────
+
+
+def _entry(**over):
+    e = {"fqdn": "x.vendor.com", "ports": [443], "protocol": "TCP",
+         "required": True, "comment": ""}
+    e.update(over)
+    return e
+
+
+def _base_payload(**over):
+    p = {
+        "vendor": "V", "category": "C", "src_ip": "10.0.0.5", "ticket_id": "CHG1",
+        "firewalls": [{"device": "FW-A", "adom": "OT-ADOM"}],
+        "entries": [_entry()],
+    }
+    p.update(over)
+    return p
+
+
+@pytest.mark.parametrize("bad_entry", [
+    {"fqdn": 'evil"\nend\nconfig system admin'},   # illegal characters
+    {"ports": ["not-a-port"]},                      # non-numeric port
+    {"ports": []},                                  # no ports at all
+    {"fqdn": ""},                                   # empty hostname
+])
+def test_ai_assist_fqdn_json_invalid_entry_returns_400_not_500(client, bad_entry):
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        resp = _post_json(client, _base_payload(entries=[_entry(**bad_entry)]))
+
+    assert resp.status_code == 400, resp.get_data(as_text=True)
+    assert resp.get_json().get("warnings")
+    mock_make_client.assert_not_called()
+
+
+def test_ai_assist_fqdn_json_unknown_protocol_defaults_to_tcp_with_warning(client):
+    """The parser downgrades an unknown protocol to TCP with a warning rather
+    than letting it reach cli_gen.service_object_cli and raise a 500."""
+    fake_plan = MagicMock()
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.decorators.check_adom_access", return_value=None), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client, \
+         patch("app.planner.engine.plan_fqdn_change", return_value=fake_plan) as mock_plan, \
+         patch("app.planner.engine.to_fqdn_report_payload", return_value={"vendor": "V"}), \
+         patch("app.llm.get_provider") as mock_get_provider:
+        mock_make_client.return_value.__enter__.return_value = MagicMock()
+        mock_get_provider.return_value.narrate.return_value = "N"
+        resp = _post_json(client, _base_payload(entries=[_entry(protocol="ICMP")]))
+
+    assert resp.status_code == 200
+    called_request = mock_plan.call_args.args[0]
+    assert called_request.entries[0].protocol == "TCP"
+    assert any("ICMP" in w for w in resp.get_json()["plan"]["intake_warnings"])
+
+
+def test_ai_assist_fqdn_json_non_list_firewalls_returns_400(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post_json(client, _base_payload(firewalls="FW-A:OT-ADOM"))
+    assert resp.status_code == 400
+
+
+def test_ai_assist_fqdn_json_vendor_and_category_reach_the_request(client):
+    fake_plan = MagicMock()
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.decorators.check_adom_access", return_value=None), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client, \
+         patch("app.planner.engine.plan_fqdn_change", return_value=fake_plan) as mock_plan, \
+         patch("app.planner.engine.to_fqdn_report_payload", return_value={"vendor": "V"}), \
+         patch("app.llm.get_provider") as mock_get_provider:
+        mock_make_client.return_value.__enter__.return_value = MagicMock()
+        mock_get_provider.return_value.narrate.return_value = "N"
+        resp = _post_json(client, _base_payload(vendor="Apple", category="APNs"))
+
+    assert resp.status_code == 200
+    called_request = mock_plan.call_args.args[0]
+    assert called_request.vendor == "Apple"
+    assert called_request.category == "APNs"
+    assert called_request.firewalls == ["FW-A:OT-ADOM"]
+    assert called_request.entries[0].ports == [443]
+
+
+# ── Finding 3: intake warnings / missing fields reach the payload ──────────
+
+
+def test_ai_assist_fqdn_response_carries_intake_warnings_and_missing_fields(client):
+    fake_plan = MagicMock()
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.decorators.check_adom_access", return_value=None), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client, \
+         patch("app.planner.engine.plan_fqdn_change", return_value=fake_plan), \
+         patch("app.planner.engine.to_fqdn_report_payload", return_value={"vendor": "V"}), \
+         patch("app.llm.get_provider") as mock_get_provider:
+        mock_make_client.return_value.__enter__.return_value = MagicMock()
+        mock_get_provider.return_value.narrate.return_value = "N"
+        # One good entry plus one bad port token → parser emits a warning but
+        # still yields entries, so the request succeeds and must surface it.
+        resp = _post_json(client, _base_payload(
+            src_ip="any",
+            entries=[_entry(ports=[443, "bogus"])],
+        ))
+
+    assert resp.status_code == 200
+    plan = resp.get_json()["plan"]
+    assert "intake_warnings" in plan
+    assert "intake_missing_fields" in plan
+    assert any("bogus" in w for w in plan["intake_warnings"])
+    # src_ip="any" also produces the parser's built-in 'all' warning
+    assert any("any source" in w or "'all'" in w for w in plan["intake_warnings"])
+    assert plan["intake_missing_fields"] == []
+
+
+# ── Finding 4a / 9: multipart branch validation ────────────────────────────
+
+
+def _xlsx_bytes():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Hostname/Domain", "Ports", "Protocol", "Vendor", "Category"])
+    ws.append(["x.vendor.com", "443", "TCP", "V", "C"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def _post_multipart(client, **form):
+    data = {
+        "src_ip": "10.0.0.5",
+        "ticket_id": "CHG1",
+        "firewalls": json.dumps([{"device": "FW-A", "adom": "OT-ADOM"}]),
+        "file": (_xlsx_bytes(), "allowlist.xlsx"),
+    }
+    data.update(form)
+    return client.post(
+        "/api/rule-review/ai-assist-fqdn",
+        data=data,
+        content_type="multipart/form-data",
+        headers={"X-CSRF-Token": "test-csrf"},
+    )
+
+
+@pytest.mark.parametrize("form", [
+    {"src_ip": ""},
+    {"firewalls": "[]"},
+])
+def test_ai_assist_fqdn_multipart_requires_src_ip_and_firewalls(client, form):
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        resp = _post_multipart(client, **form)
+    assert resp.status_code == 400
+    assert "required" in resp.get_json()["error"].lower()
+    mock_make_client.assert_not_called()
+
+
+def test_ai_assist_fqdn_multipart_rejects_non_xlsx_filename(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post_multipart(client, file=(_xlsx_bytes(), "allowlist.csv"))
+    assert resp.status_code == 400
+    assert ".xlsx" in resp.get_json()["error"]
+
+
+def test_ai_assist_fqdn_multipart_rejects_bad_content_type(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post_multipart(
+            client, file=(_xlsx_bytes(), "allowlist.xlsx", "text/html")
+        )
+    assert resp.status_code == 400
+    assert "content type" in resp.get_json()["error"].lower()
