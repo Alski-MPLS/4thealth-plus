@@ -90,3 +90,63 @@ def test_summarise_policy_shape():
     assert summary["action"] == "accept"
     assert summary["log"] == "all"
     assert summary["srcaddr_negate"] is False
+
+
+def test_build_fqdn_catalog_indexes_objects_and_groups():
+    from app.planner.catalogs import build_fqdn_catalog
+
+    client = MagicMock()
+    client.get_address_objects.return_value = [
+        {"name": "FQDN-a", "type": "fqdn", "fqdn": "api.vendor.com"}
+    ]
+    client.get_address_groups.return_value = [
+        {"name": "GRP-DST", "member": ["FQDN-a"]}
+    ]
+
+    cat = build_fqdn_catalog(client, "OT-ADOM")
+    assert cat.fqdns_for_ref("GRP-DST") == {"api.vendor.com"}
+
+
+def test_search_fqdn_rules_reports_covered_and_uncovered():
+    from app.planner.catalogs import search_fqdn_rules
+
+    client = MagicMock()
+    client.get_address_objects.return_value = [
+        {"name": "FQDN-covered", "type": "fqdn", "fqdn": "covered.vendor.com"},
+    ]
+    client.get_address_groups.return_value = [
+        {"name": "GRP-Vendor-DST", "member": ["FQDN-covered"]},
+    ]
+    client.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    client.get_policies.return_value = [
+        {
+            "policyid": 10, "name": "ALLOW-VENDOR", "status": "enable",
+            "dstaddr": ["GRP-Vendor-DST"],
+        }
+    ]
+
+    result = search_fqdn_rules(
+        client, "OT-ADOM", "FW-A", ["covered.vendor.com", "uncovered.vendor.com"]
+    )
+
+    by_fqdn = {r["fqdn"]: r for r in result["results"]}
+    assert by_fqdn["covered.vendor.com"]["covered"] is True
+    assert by_fqdn["covered.vendor.com"]["rule_id"] == 10
+    assert by_fqdn["covered.vendor.com"]["via_group"] == "GRP-Vendor-DST"
+    assert by_fqdn["uncovered.vendor.com"]["covered"] is False
+    assert result["degraded"] is False
+    assert result["packages_searched"] == ["pkg1"]
+
+
+def test_search_fqdn_rules_degrades_on_policy_fetch_failure():
+    from app.planner.catalogs import search_fqdn_rules
+
+    client = MagicMock()
+    client.get_address_objects.return_value = []
+    client.get_address_groups.return_value = []
+    client.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    client.get_policies.side_effect = RuntimeError("timeout")
+
+    result = search_fqdn_rules(client, "OT-ADOM", "FW-A", ["x.vendor.com"])
+    assert result["degraded"] is True
+    assert result["packages_failed"][0]["package"] == "pkg1"
