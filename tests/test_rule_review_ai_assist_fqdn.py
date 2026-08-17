@@ -128,3 +128,34 @@ def test_ai_assist_fqdn_xlsx_upload_success(client):
     called_request = mock_plan.call_args.args[0]
     assert called_request.vendor == "V"
     assert called_request.entries[0].fqdn == "x.vendor.com"
+
+
+def test_ai_assist_fqdn_malformed_firewall_entry_returns_400_not_500(client):
+    with patch("app.app_settings.get_setting", return_value=True):
+        resp = _post_json(client, {
+            "vendor": "V", "category": "C", "src_ip": "10.0.0.5", "ticket_id": "CHG1",
+            "firewalls": [{}],
+            "entries": [{"fqdn": "x.vendor.com", "ports": [443], "protocol": "TCP",
+                         "required": True, "comment": ""}],
+        })
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert "device" in data["error"].lower()
+    assert "adom" in data["error"].lower()
+
+
+def test_ai_assist_fqdn_adom_denial_short_circuits_before_fmg_work(client):
+    forbidden = (json.dumps({"error": "forbidden"}), 403, {"Content-Type": "application/json"})
+
+    with patch("app.app_settings.get_setting", return_value=True), \
+         patch("app.routes.rule_review_routes.check_adom_access", return_value=forbidden), \
+         patch("app.routes.rule_review_routes.make_client") as mock_make_client:
+        resp = _post_json(client, {
+            "vendor": "V", "category": "C", "src_ip": "10.0.0.5", "ticket_id": "CHG1",
+            "firewalls": [{"device": "FW-A", "adom": "OT-ADOM"}],
+            "entries": [{"fqdn": "x.vendor.com", "ports": [443], "protocol": "TCP",
+                         "required": True, "comment": ""}],
+        })
+
+    assert resp.status_code == 403
+    mock_make_client.assert_not_called()

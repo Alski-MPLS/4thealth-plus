@@ -567,6 +567,21 @@ def rr_ai_assist_fqdn():
 
     is_multipart = "file" in request.files
 
+    def _validate_firewalls(fws):
+        """Presence-check every firewall entry before it is used to build the
+        FQDNAllowlistRequest or the ADOM-access loop — a firewall entry
+        missing "device" or "adom" must never reach a dict-key lookup that
+        would raise an unhandled KeyError (and surface as a raw 500)."""
+        for fw in fws:
+            if not fw.get("device") or not fw.get("adom"):
+                return jsonify(
+                    {
+                        "error": "Each target firewall must include both a device and an ADOM "
+                        "(format: DEVICE:ADOM) — got an entry missing one or the other."
+                    }
+                ), 400
+        return None
+
     if is_multipart:
         src_ip = request.form.get("src_ip", "")
         ticket_id = request.form.get("ticket_id", "")
@@ -574,6 +589,8 @@ def rr_ai_assist_fqdn():
             firewalls_raw = _json.loads(request.form.get("firewalls", "[]"))
         except ValueError:
             return jsonify({"error": "firewalls must be a JSON array"}), 400
+        if err := _validate_firewalls(firewalls_raw):
+            return err
         try:
             parsed = parse_fqdn_xlsx(
                 request.files["file"], src_ip=src_ip, ticket_id=ticket_id,
@@ -603,6 +620,9 @@ def rr_ai_assist_fqdn():
                 {"error": "src_ip, firewalls, and at least one entry are required"}
             ), 400
 
+        if err := _validate_firewalls(firewalls_raw):
+            return err
+
         entries = [
             FQDNEntry(
                 fqdn=e.get("fqdn", ""),
@@ -626,13 +646,6 @@ def rr_ai_assist_fqdn():
         intake_warnings = []
 
     for fw in firewalls_raw:
-        if not fw.get("device") or not fw.get("adom"):
-            return jsonify(
-                {
-                    "error": "Each target firewall must include both a device and an ADOM "
-                    "(format: DEVICE:ADOM) — got an entry missing one or the other."
-                }
-            ), 400
         if err := check_adom_access(fw["adom"]):
             return err
 
