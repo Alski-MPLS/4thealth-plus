@@ -846,6 +846,15 @@ def plan_change(
     dsts = _norm_list(dst, "dst")
     services = _norm_list(service, "service")
 
+    for _v in srcs + dsts:
+        try:
+            ipaddress.ip_network(_v, strict=False)
+        except ValueError:
+            raise PlannerDataError(
+                "request",
+                f"{_v!r} is not a valid IP/CIDR. Use plan_fqdn_change() for FQDN-based requests.",
+            )
+
     service_ranges = []
     for tok in services:
         try:

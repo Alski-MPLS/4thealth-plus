@@ -229,3 +229,19 @@ def test_to_report_payload_has_expected_top_level_keys():
         "ticket_id", "request", "zone_verdict", "existing_rules",
         "naming", "logging", "approval", "recommendation", "cli",
     }
+
+
+def test_plan_change_rejects_non_ip_src():
+    with pytest.raises(PlannerDataError, match="plan_fqdn_change"):
+        plan_change(
+            src="not-an-ip.example.com", dst="10.0.0.6", service="tcp/443",
+            firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
+        )
+
+
+def test_plan_change_rejects_non_ip_dst():
+    with pytest.raises(PlannerDataError, match="plan_fqdn_change"):
+        plan_change(
+            src="10.0.0.5", dst="*.vendor.com", service="tcp/443",
+            firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
+        )
