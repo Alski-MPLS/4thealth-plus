@@ -12,6 +12,9 @@ from app.planner.cli_gen import (
     exception_comment,
     policy_cli,
     service_object_cli,
+    addrgrp_create_cli,
+    fqdn_address_object_cli,
+    wildcard_fqdn_address_object_cli,
 )
 
 
@@ -138,3 +141,40 @@ def test_addrgrp_create_cli_exact():
         '    next\n'
         'end'
     )
+
+
+def test_fqdn_address_object_cli():
+    cli = fqdn_address_object_cli("FQDN-api.vendor.com", "api.vendor.com", "Vendor API - CHG1")
+    assert cli == (
+        'config firewall address\n'
+        '    edit "FQDN-api.vendor.com"\n'
+        '        set type fqdn\n'
+        '        set fqdn "api.vendor.com"\n'
+        '        set comment "Vendor API - CHG1"\n'
+        '    next\n'
+        'end'
+    )
+
+
+def test_wildcard_fqdn_address_object_cli():
+    cli = wildcard_fqdn_address_object_cli("WFQDN-push.apple.com", "*.push.apple.com")
+    assert 'set type wildcard-fqdn' in cli
+    assert 'set wildcard-fqdn "*.push.apple.com"' in cli
+    assert 'set comment' not in cli  # no comment passed
+
+
+def test_fqdn_address_object_cli_escapes_quotes_and_strips_newlines():
+    cli = fqdn_address_object_cli("FQDN-x", 'evil"fqdn\ninjected', "")
+    assert '"' not in cli.split('set fqdn "')[1].split('"')[0].replace("''", "")
+    assert "\n" not in cli.split('set fqdn "')[1].split('"')[0]
+
+
+def test_addrgrp_create_cli_warn_replace_prepends_warning():
+    cli = addrgrp_create_cli("GRP-DST", ["A", "B"], warn_replace=True)
+    assert cli.startswith("# WARNING: 'set member' replaces all existing members.")
+    assert 'set member "A" "B"' in cli
+
+
+def test_addrgrp_create_cli_default_no_warning():
+    cli = addrgrp_create_cli("GRP-DST", ["A"])
+    assert not cli.startswith("#")
