@@ -503,7 +503,7 @@ def test_plan_fqdn_change_partial_coverage_yields_group_append_alternative():
         {"name": "GRP-Vendor-Co-API-DST", "member": ["FQDN-covered.vendor.com"]},
     ]
     policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable",
+        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
         "dstaddr": ["GRP-Vendor-Co-API-DST"], "srcaddr": [], "service": [],
     }]
     fake_fmg = _fqdn_fmg_base(
@@ -532,7 +532,7 @@ def test_plan_fqdn_change_already_covered_when_all_entries_covered():
     )
     address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
     policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable",
+        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
         "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
     }]
     fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
@@ -561,7 +561,7 @@ def test_plan_fqdn_change_blocked_verdict_not_downgraded_by_full_coverage():
     )
     address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
     policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable",
+        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
         "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
     }]
     fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
@@ -572,3 +572,86 @@ def test_plan_fqdn_change_blocked_verdict_not_downgraded_by_full_coverage():
 
     assert fw.verdict == "blocked_exception"
     assert fw.coverage == "already_covered"
+
+
+# ── Finding 1: object/group name sanitization ──────────────────────────────
+
+_MALICIOUS = 'evil"\n    next\nend\nconfig system admin\n    edit "pwn\r; rm -rf /'
+_ALLOWED_NAME_CHARS = set(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._*-"
+)
+
+
+def test_fqdn_object_name_sanitizes_malicious_input():
+    from app.planner.engine import _fqdn_object_name
+
+    obj_type, name = _fqdn_object_name(_MALICIOUS)
+
+    assert obj_type == "fqdn"
+    assert name.startswith("FQDN-")
+    assert '"' not in name
+    assert "\n" not in name and "\r" not in name
+    assert " " not in name and ";" not in name and "/" not in name
+    assert set(name) <= _ALLOWED_NAME_CHARS
+
+
+def test_fqdn_object_name_sanitizes_malicious_wildcard_input():
+    from app.planner.engine import _fqdn_object_name
+
+    obj_type, name = _fqdn_object_name('*.evil"\nend\nconfig system admin')
+
+    assert obj_type == "wildcard-fqdn"
+    assert name.startswith("WFQDN-")
+    assert set(name) <= _ALLOWED_NAME_CHARS
+
+
+def test_fqdn_object_name_preserves_legitimate_values():
+    from app.planner.engine import _fqdn_object_name
+
+    assert _fqdn_object_name("api.vendor.com") == ("fqdn", "FQDN-api.vendor.com")
+    assert _fqdn_object_name("*.push.apple.com") == (
+        "wildcard-fqdn", "WFQDN-push.apple.com",
+    )
+
+
+def test_fqdn_group_name_sanitizes_malicious_vendor_and_category():
+    from app.planner.engine import _fqdn_group_name
+
+    name = _fqdn_group_name(_MALICIOUS, 'cat"\nend')
+
+    assert name.startswith("GRP-")
+    assert name.endswith("-DST")
+    assert '"' not in name
+    assert "\n" not in name and "\r" not in name
+    assert set(name) <= _ALLOWED_NAME_CHARS
+
+
+def test_fqdn_group_name_preserves_legitimate_values():
+    from app.planner.engine import _fqdn_group_name
+
+    assert _fqdn_group_name("Vendor Co", "API") == "GRP-Vendor-Co-API-DST"
+
+
+def test_plan_fqdn_change_generated_cli_has_no_injected_statements():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor=_MALICIOUS, category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn='bad"\nend\nconfig system admin\n    edit "x')],
+    )
+    plan = plan_fqdn_change(
+        req, fmg_client=_fqdn_fmg_base(), zone_client=_fqdn_zone_client()
+    )
+    fw = plan.per_firewall[0]
+
+    obj_cli = fw.proposed_objects[0].cli
+    lines = [ln.strip() for ln in obj_cli.splitlines()]
+    assert len([ln for ln in lines if ln.startswith("edit ")]) == 1
+    assert lines.count("end") == 1
+    assert "config system admin" not in lines
+
+    grp_lines = [ln.strip() for ln in fw.proposed_group.cli.splitlines()]
+    assert len([ln for ln in grp_lines if ln.startswith("edit ")]) == 1
+    assert "config system admin" not in grp_lines

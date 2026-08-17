@@ -178,3 +178,45 @@ def test_addrgrp_create_cli_warn_replace_prepends_warning():
 def test_addrgrp_create_cli_default_no_warning():
     cli = addrgrp_create_cli("GRP-DST", ["A"])
     assert not cli.startswith("#")
+
+
+# ── Finding 1: CLI injection via the `name` argument ────────────────────────
+
+_MALICIOUS_NAME = 'X"\n    next\nend\nconfig system admin\n    edit "evil'
+
+
+def _edit_lines(cli: str) -> list[str]:
+    return [ln for ln in cli.splitlines() if ln.strip().startswith("edit ")]
+
+
+def test_fqdn_address_object_cli_escapes_injection_in_name():
+    cli = fqdn_address_object_cli(_MALICIOUS_NAME, "api.vendor.com", "")
+    edits = _edit_lines(cli)
+    assert len(edits) == 1
+    # The whole malicious payload collapsed onto the single edit line.
+    assert edits[0].strip().startswith('edit "')
+    assert edits[0].strip().endswith('"')
+    # No injected structural keywords escaped onto their own lines.
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped
+    assert "\n" not in edits[0]
+
+
+def test_wildcard_fqdn_address_object_cli_escapes_injection_in_name():
+    cli = wildcard_fqdn_address_object_cli(_MALICIOUS_NAME, "*.vendor.com")
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped
+
+
+def test_addrgrp_create_cli_escapes_injection_in_name():
+    cli = addrgrp_create_cli(_MALICIOUS_NAME, ["A"])
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped

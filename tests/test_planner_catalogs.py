@@ -120,7 +120,7 @@ def test_search_fqdn_rules_reports_covered_and_uncovered():
     client.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
     client.get_policies.return_value = [
         {
-            "policyid": 10, "name": "ALLOW-VENDOR", "status": "enable",
+            "policyid": 10, "name": "ALLOW-VENDOR", "status": "enable", "action": 1,
             "dstaddr": ["GRP-Vendor-DST"],
         }
     ]
@@ -150,3 +150,77 @@ def test_search_fqdn_rules_degrades_on_policy_fetch_failure():
     result = search_fqdn_rules(client, "OT-ADOM", "FW-A", ["x.vendor.com"])
     assert result["degraded"] is True
     assert result["packages_failed"][0]["package"] == "pkg1"
+
+
+# ── Finding 6: only accept policies count as coverage ──────────────────────
+
+def _fqdn_search_client(policy_action):
+    """MagicMock FMG client with one FQDN object referenced by one policy
+    whose `action` is `policy_action` (omitted entirely when None)."""
+    client = MagicMock()
+    client.get_address_objects.return_value = [
+        {"name": "FQDN-vendor", "type": "fqdn", "fqdn": "api.vendor.com"},
+    ]
+    client.get_address_groups.return_value = []
+    client.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    pol = {
+        "policyid": 10, "name": "RULE", "status": "enable",
+        "dstaddr": ["FQDN-vendor"],
+    }
+    if policy_action is not None:
+        pol["action"] = policy_action
+    client.get_policies.return_value = [pol]
+    return client
+
+
+def test_search_fqdn_rules_deny_policy_is_not_coverage():
+    from app.planner.catalogs import search_fqdn_rules
+
+    # _ACTION_MAP in app.planner.matching: 0 == deny
+    result = search_fqdn_rules(
+        _fqdn_search_client(0), "OT-ADOM", "FW-A", ["api.vendor.com"]
+    )
+    row = result["results"][0]
+    assert row["covered"] is False
+    assert row["rule_id"] is None
+    assert result["partial_group_match"] is None
+
+
+def test_search_fqdn_rules_deny_action_string_is_not_coverage():
+    from app.planner.catalogs import search_fqdn_rules
+
+    result = search_fqdn_rules(
+        _fqdn_search_client("deny"), "OT-ADOM", "FW-A", ["api.vendor.com"]
+    )
+    assert result["results"][0]["covered"] is False
+
+
+def test_search_fqdn_rules_missing_action_is_not_coverage():
+    from app.planner.catalogs import search_fqdn_rules
+
+    # FortiGate's implicit default is deny — an absent action must never be
+    # optimistically read as accept.
+    result = search_fqdn_rules(
+        _fqdn_search_client(None), "OT-ADOM", "FW-A", ["api.vendor.com"]
+    )
+    assert result["results"][0]["covered"] is False
+
+
+def test_search_fqdn_rules_accept_action_is_coverage():
+    from app.planner.catalogs import search_fqdn_rules
+
+    for accept_val in (1, "1", "accept"):
+        result = search_fqdn_rules(
+            _fqdn_search_client(accept_val), "OT-ADOM", "FW-A", ["api.vendor.com"]
+        )
+        assert result["results"][0]["covered"] is True, accept_val
+        assert result["results"][0]["rule_id"] == 10
+
+
+def test_search_fqdn_rules_disabled_accept_policy_is_not_coverage():
+    from app.planner.catalogs import search_fqdn_rules
+
+    client = _fqdn_search_client(1)
+    client.get_policies.return_value[0]["status"] = "disable"
+    result = search_fqdn_rules(client, "OT-ADOM", "FW-A", ["api.vendor.com"])
+    assert result["results"][0]["covered"] is False

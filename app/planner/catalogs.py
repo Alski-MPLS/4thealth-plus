@@ -124,6 +124,11 @@ def search_fqdn_rules(
     string match). Returns per-FQDN coverage status and a
     partial_group_match hint when some FQDNs are covered and others are
     not (candidate for group-append).
+
+    Coverage is destination-address-only: the policy's source addresses and
+    services are NOT compared against the request (accepted design
+    limitation). Only enabled policies whose action is `accept` can mark an
+    FQDN covered — a deny policy matching the FQDN is not coverage.
     """
     result: dict[str, Any] = {
         "results": [],
@@ -169,6 +174,14 @@ def search_fqdn_rules(
 
         for pol in policies:
             pol_enabled = pol.get("status", "enable") != "disable"
+            # Only an accept policy grants coverage — a deny (or ipsec/ssl-vpn)
+            # policy matching the FQDN blocks it and must not be reported as
+            # "already covered". FMG encodes action as an int (see _ACTION_MAP
+            # in app.planner.matching) or, on some payloads, as a string.
+            action_raw = pol.get("action", 0)
+            pol_accepts = action_raw in (1, "1", "accept")
+            if not (pol_enabled and pol_accepts):
+                continue
             dst_names = _names(pol.get("dstaddr", []))
 
             pol_fqdns: set[str] = set()

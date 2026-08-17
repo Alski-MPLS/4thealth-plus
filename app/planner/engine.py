@@ -158,13 +158,27 @@ def _is_valid_ip(value: str) -> bool:
         return False
 
 
+def _sanitize_object_name_part(value: str) -> str:
+    """Strip every character outside [A-Za-z0-9._*-] from a name fragment.
+
+    FortiGate object names only support word-ish characters, so this is not a
+    functional restriction — it is the first of two defence layers (the second
+    being cli_gen._safe_cli_str) preventing an attacker-controlled FQDN,
+    vendor, or category string from breaking out of an `edit "..."` statement
+    and injecting arbitrary CLI commands.
+    """
+    return "".join(c for c in str(value) if c.isascii() and (c.isalnum() or c in "._*-"))
+
+
 def _fqdn_object_name(fqdn_str: str) -> tuple[str, str]:
     """Return (obj_type, truncated_name) for an FQDN or wildcard-FQDN string."""
-    if fqdn_str.startswith("*."):
-        name = f"WFQDN-{fqdn_str[2:]}"
+    is_wildcard = fqdn_str.startswith("*.")
+    safe = _sanitize_object_name_part(fqdn_str)
+    if is_wildcard:
+        name = f"WFQDN-{safe[2:] if safe.startswith('*.') else safe}"
         obj_type = "wildcard-fqdn"
     else:
-        name = f"FQDN-{fqdn_str}"
+        name = f"FQDN-{safe}"
         obj_type = "fqdn"
     if len(name) > _FQDN_NAME_MAX:
         name = name[:_FQDN_NAME_MAX - 3] + "..."
@@ -186,8 +200,8 @@ def _parse_fqdn_firewall_spec(raw: str) -> tuple[str, str, bool]:
 
 def _fqdn_group_name(vendor: str, category: str) -> str:
     """Return GRP-<Vendor>-<Category>-DST with spaces as hyphens, ≤79 chars."""
-    v = vendor.replace(" ", "-")
-    c = category.replace(" ", "-")
+    v = _sanitize_object_name_part(vendor.replace(" ", "-"))
+    c = _sanitize_object_name_part(category.replace(" ", "-"))
     name = f"GRP-{v}-{c}-DST"
     if len(name) > _FQDN_NAME_MAX:
         name = name[:_FQDN_NAME_MAX - 3] + "..."

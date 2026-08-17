@@ -127,7 +127,7 @@ def addrgrp_create_cli(name: str, members: list[str], warn_replace: bool = False
     quoted = " ".join(f'"{m}"' for m in members)
     body = (
         'config firewall addrgrp\n'
-        f'    edit "{name}"\n'
+        f'    edit "{_safe_cli_str(name)}"\n'
         f'        set member {quoted}\n'
         '        set comment "<TICKET_ID>"\n'
         '    next\n'
@@ -147,7 +147,7 @@ def fqdn_address_object_cli(name: str, fqdn_str: str, comment: str = "") -> str:
     safe_fqdn = _safe_cli_str(fqdn_str)
     lines = [
         "config firewall address",
-        f'    edit "{name}"',
+        f'    edit "{_safe_cli_str(name)}"',
         "        set type fqdn",
         f'        set fqdn "{safe_fqdn}"',
     ]
@@ -162,7 +162,7 @@ def wildcard_fqdn_address_object_cli(name: str, wildcard_str: str, comment: str 
     safe_wildcard = _safe_cli_str(wildcard_str)
     lines = [
         "config firewall address",
-        f'    edit "{name}"',
+        f'    edit "{_safe_cli_str(name)}"',
         "        set type wildcard-fqdn",
         f'        set wildcard-fqdn "{safe_wildcard}"',
     ]
