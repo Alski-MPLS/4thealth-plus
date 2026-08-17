@@ -1002,6 +1002,7 @@ async function onFqdnFirewallInput(evt) {
     li.addEventListener('mousedown', (e) => {
       e.preventDefault();
       applyFirewallSuggestion(input, matches[Number(li.dataset.idx)]);
+      renderFqdnFirewallSuggestions([]);
     });
   });
 }
