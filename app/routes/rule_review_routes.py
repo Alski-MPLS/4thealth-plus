@@ -12,10 +12,12 @@ API (all read-only against FortiManager; POST is for submitting work items):
   GET  /api/rule-review/ai-assist-status    — is AI Assist enabled?
   POST /api/rule-review/ai-assist           — single-request AI Assist (planner + LLM narration)
   GET  /api/rule-review/devices             — device:ADOM pairs across accessible ADOMs (AI Assist typeahead)
+  POST /api/rule-review/ai-assist-fqdn      — vendor FQDN/wildcard allowlist AI Assist (planner + LLM narration)
 """
 
 import csv
 import io
+import json as _json
 
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 
@@ -518,8 +520,6 @@ def rr_ai_assist():
     narrative = None
     narrative_error = None
     try:
-        import json as _json
-
         from app.llm import get_provider
 
         provider = get_provider()
@@ -543,5 +543,140 @@ def rr_ai_assist():
             "narrative": narrative,
             "narrative_error": narrative_error,
             "path_relevance": path_relevance,
+        }
+    )
+
+
+# ── AI Assist: FQDN allowlist ───────────────────────────────────────────────
+
+
+@bp.route("/api/rule-review/ai-assist-fqdn", methods=["POST"])
+@tab_required("rule_review")
+def rr_ai_assist_fqdn():
+    """AI Assist (FQDN allowlist mode): run plan_fqdn_change deterministically,
+    then narrate the result with the configured LLM. Same guarantees as
+    rr_ai_assist — the deterministic plan always returns; narration is
+    best-effort."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    from app.planner.fqdn_intake import parse_fqdn_xlsx
+    from app.planner.models import FQDNAllowlistRequest, FQDNEntry
+
+    is_multipart = "file" in request.files
+
+    if is_multipart:
+        src_ip = request.form.get("src_ip", "")
+        ticket_id = request.form.get("ticket_id", "")
+        try:
+            firewalls_raw = _json.loads(request.form.get("firewalls", "[]"))
+        except ValueError:
+            return jsonify({"error": "firewalls must be a JSON array"}), 400
+        try:
+            parsed = parse_fqdn_xlsx(
+                request.files["file"], src_ip=src_ip, ticket_id=ticket_id,
+            )
+        except Exception as exc:
+            return jsonify({"error": f"Could not parse uploaded .xlsx: {exc}"}), 400
+        if not parsed.entries:
+            return jsonify({"error": "No valid FQDN rows found in the uploaded file"}), 400
+        fqdn_request = FQDNAllowlistRequest(
+            vendor=parsed.vendor, category=parsed.category, src_ip=src_ip,
+            ticket_id=ticket_id,
+            firewalls=[f"{fw['device']}:{fw['adom']}" for fw in firewalls_raw],
+            entries=parsed.entries,
+        )
+        intake_warnings = parsed.warnings
+    else:
+        data = request.get_json(silent=True) or {}
+        vendor = data.get("vendor", "")
+        category = data.get("category", "")
+        src_ip = data.get("src_ip", "")
+        ticket_id = data.get("ticket_id", "")
+        firewalls_raw = data.get("firewalls", [])
+        entries_raw = data.get("entries", [])
+
+        if not src_ip or not firewalls_raw or not entries_raw:
+            return jsonify(
+                {"error": "src_ip, firewalls, and at least one entry are required"}
+            ), 400
+
+        entries = [
+            FQDNEntry(
+                fqdn=e.get("fqdn", ""),
+                is_wildcard=str(e.get("fqdn", "")).startswith("*."),
+                ports=[int(p) for p in e.get("ports", [])],
+                protocol=str(e.get("protocol", "TCP")).upper(),
+                required=bool(e.get("required", True)),
+                comment=e.get("comment", ""),
+            )
+            for e in entries_raw
+            if e.get("fqdn")
+        ]
+        if not entries:
+            return jsonify({"error": "No valid FQDN entries provided"}), 400
+
+        fqdn_request = FQDNAllowlistRequest(
+            vendor=vendor, category=category, src_ip=src_ip, ticket_id=ticket_id,
+            firewalls=[f"{fw['device']}:{fw['adom']}" for fw in firewalls_raw],
+            entries=entries,
+        )
+        intake_warnings = []
+
+    for fw in firewalls_raw:
+        if not fw.get("device") or not fw.get("adom"):
+            return jsonify(
+                {
+                    "error": "Each target firewall must include both a device and an ADOM "
+                    "(format: DEVICE:ADOM) — got an entry missing one or the other."
+                }
+            ), 400
+        if err := check_adom_access(fw["adom"]):
+            return err
+
+    from app.planner.engine import plan_fqdn_change, to_fqdn_report_payload
+    from app.planner.models import PlannerDataError
+
+    try:
+        with make_client() as fmg:
+            plan = plan_fqdn_change(fqdn_request, fmg_client=fmg)
+    except PlannerDataError as exc:
+        return jsonify({"error": str(exc), "source": exc.source}), 502
+    except FMGError as exc:
+        return upstream_api_error("rule_review", exc)
+    except Exception as exc:
+        return internal_api_error("rule_review", exc)
+
+    plan_dict = to_fqdn_report_payload(plan)
+    plan_dict["intake_warnings"] = intake_warnings
+
+    narrative = None
+    narrative_error = None
+    try:
+        from app.llm import get_provider
+
+        provider = get_provider()
+        narrative = provider.narrate(
+            system_prompt=(
+                "You are a firewall change analyst assistant. You are given a "
+                "structured, already-computed FQDN/wildcard allowlist change plan "
+                "as JSON — one entry per target firewall with coverage status and "
+                "any proposed address objects/group/policy. Write a clear, concise "
+                "report for a peer reviewer: summarize coverage per firewall, what "
+                "needs to be created, and any warnings. Never invent or change any "
+                "value in the plan — only explain it in prose."
+            ),
+            user_prompt=_json.dumps(plan_dict, default=str),
+        )
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify(
+        {
+            "plan": plan_dict,
+            "narrative": narrative,
+            "narrative_error": narrative_error,
         }
     )
