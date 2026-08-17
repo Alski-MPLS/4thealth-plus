@@ -330,3 +330,245 @@ def test_to_fqdn_report_payload_shape():
     assert payload["vendor"] == "V"
     assert payload["per_firewall"][0]["firewall"] == "FW-A"
     assert payload["warnings"] == ["w1"]
+
+
+# ---------------------------------------------------------------------------
+# FQDN planner — additional coverage (fix round 1)
+# ---------------------------------------------------------------------------
+
+
+def _fqdn_zone_client(verdict="ALLOWED", src_zones=("OT-LAN",), dst_zones=("Internet",)):
+    zc = MagicMock()
+    zc.query.return_value = [{
+        "verdict": verdict, "src_zones": list(src_zones), "dst_zones": list(dst_zones),
+        "governing": [], "all_policies": [],
+    }]
+    zc.zones.return_value = {"zones": [], "total_subnets": 0}
+    return zc
+
+
+def _fqdn_fmg_base(address_objects=(), address_groups=(), policies=()):
+    """MagicMock FMGClient stub with the FQDN-planner defaults; override any
+    of the pre-seeded object/group/policy lists via kwargs."""
+    fake_fmg = MagicMock()
+    fake_fmg.get_devices.return_value = [{"name": "FW-A"}]
+    fake_fmg.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    fake_fmg.get_policies.return_value = list(policies)
+    fake_fmg.get_address_objects.return_value = list(address_objects)
+    fake_fmg.get_address_groups.return_value = list(address_groups)
+    fake_fmg.get_service_objects.return_value = []
+    fake_fmg.get_service_groups.return_value = []
+    fake_fmg.get_device_interfaces.return_value = []
+    fake_fmg.get_device_routes.return_value = []
+    return fake_fmg
+
+
+def test_plan_fqdn_change_malformed_spec_in_zone_error_path_yields_error_not_unknown():
+    """Regression for review finding 1: a malformed DEVICE:ADOM spec must
+    yield verdict='error' even when it's the zone client itself that fails
+    (not just in the main per-firewall validation loop)."""
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest, PlannerDataError
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["not-a-valid-spec", "FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+    )
+
+    fake_zc = MagicMock()
+    fake_zc.query.side_effect = PlannerDataError("4thealth", "zone db unreachable")
+
+    plan = plan_fqdn_change(req, fmg_client=MagicMock(), zone_client=fake_zc)
+
+    assert len(plan.per_firewall) == 2
+    bad, good = plan.per_firewall
+    assert bad.firewall == "not-a-valid-spec"
+    assert bad.verdict == "error"
+    assert bad.degraded is True
+    assert "Invalid firewall spec" in bad.warnings[0]
+
+    assert good.firewall == "FW-A"
+    assert good.adom == "OT-ADOM"
+    assert good.verdict == "unknown_no_action"
+    assert good.degraded is True
+    assert "Zone client unavailable" in good.warnings[0]
+
+
+def test_plan_fqdn_change_truncates_long_object_name():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    long_fqdn = "a" * 90 + ".example.com"
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=long_fqdn)],
+    )
+    fake_fmg = _fqdn_fmg_base()
+    fake_zc = _fqdn_zone_client()
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert len(fw.proposed_objects) == 1
+    name = fw.proposed_objects[0].name
+    assert len(name) == 79
+    assert name.endswith("...")
+    assert any("truncated" in w for w in fw.warnings)
+
+
+def test_plan_fqdn_change_disambiguates_colliding_truncated_names():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    base = "a" * 71
+    fqdn1 = base + "1" + "b" * 20 + ".com"
+    fqdn2 = base + "2" + "b" * 20 + ".com"
+    # Both truncate to the same first 76 chars ("FQDN-" + base), so their
+    # names collide unless disambiguated.
+    assert ("FQDN-" + fqdn1)[:76] == ("FQDN-" + fqdn2)[:76]
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=fqdn1), _fqdn_entry(fqdn=fqdn2)],
+    )
+    fake_fmg = _fqdn_fmg_base()
+    fake_zc = _fqdn_zone_client()
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    names = [o.name for o in fw.proposed_objects]
+    assert len(names) == 2
+    assert len(set(names)) == 2  # distinct — no silent overwrite
+    assert any("collision" in w for w in fw.warnings)
+
+
+def test_plan_fqdn_change_unknown_verdict_skips_analysis():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+    )
+    fake_fmg = _fqdn_fmg_base()
+    fake_zc = _fqdn_zone_client(verdict="UNKNOWN")
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert fw.verdict == "unknown_no_action"
+    assert fw.coverage == "n/a"
+    assert fw.proposed_objects == []
+    fake_fmg.get_devices.assert_not_called()
+    fake_fmg.get_address_objects.assert_not_called()
+
+
+def test_plan_fqdn_change_blocked_verdict_survives_new_rule_analysis():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+    )
+    fake_fmg = _fqdn_fmg_base()
+    fake_zc = _fqdn_zone_client(verdict="BLOCKED")
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert fw.verdict == "blocked_exception"
+    assert fw.coverage == "new_rule"
+    assert len(fw.proposed_objects) == 1
+
+
+def test_plan_fqdn_change_partial_coverage_yields_group_append_alternative():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    covered_fqdn = "covered.vendor.com"
+    uncovered_fqdn = "new.vendor.com"
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=covered_fqdn), _fqdn_entry(fqdn=uncovered_fqdn)],
+    )
+
+    address_objects = [
+        {"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": covered_fqdn},
+    ]
+    address_groups = [
+        {"name": "GRP-Vendor-Co-API-DST", "member": ["FQDN-covered.vendor.com"]},
+    ]
+    policies = [{
+        "policyid": 1, "name": "pol1", "status": "enable",
+        "dstaddr": ["GRP-Vendor-Co-API-DST"], "srcaddr": [], "service": [],
+    }]
+    fake_fmg = _fqdn_fmg_base(
+        address_objects=address_objects, address_groups=address_groups, policies=policies,
+    )
+    fake_zc = _fqdn_zone_client()
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert fw.coverage == "partial_coverage"
+    assert [e.fqdn for e in fw.covered_entries] == [covered_fqdn]
+    assert [e.fqdn for e in fw.uncovered_entries] == [uncovered_fqdn]
+    assert fw.group_append_alternative is not None
+    assert fw.group_append_alternative.group == "GRP-Vendor-Co-API-DST"
+
+
+def test_plan_fqdn_change_already_covered_when_all_entries_covered():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    fqdn = "covered.vendor.com"
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=fqdn)],
+    )
+    address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
+    policies = [{
+        "policyid": 1, "name": "pol1", "status": "enable",
+        "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
+    }]
+    fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
+    fake_zc = _fqdn_zone_client()
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert fw.verdict == "already_covered"
+    assert fw.coverage == "already_covered"
+    assert fw.proposed_objects == []
+
+
+def test_plan_fqdn_change_blocked_verdict_not_downgraded_by_full_coverage():
+    """A BLOCKED zone verdict must survive even when every entry is already
+    covered by an existing rule — it must not be downgraded to
+    'already_covered' (the existing `if fw.verdict != 'blocked_exception':`
+    guard in _plan_fqdn_firewall)."""
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    fqdn = "covered.vendor.com"
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=fqdn)],
+    )
+    address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
+    policies = [{
+        "policyid": 1, "name": "pol1", "status": "enable",
+        "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
+    }]
+    fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
+    fake_zc = _fqdn_zone_client(verdict="BLOCKED")
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+
+    assert fw.verdict == "blocked_exception"
+    assert fw.coverage == "already_covered"

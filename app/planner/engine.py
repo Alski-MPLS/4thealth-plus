@@ -171,6 +171,19 @@ def _fqdn_object_name(fqdn_str: str) -> tuple[str, str]:
     return obj_type, name
 
 
+def _parse_fqdn_firewall_spec(raw: str) -> tuple[str, str, bool]:
+    """Parse a "DEVICE:ADOM" firewall spec string.
+
+    Returns (device, adom, ok). ok is False when the spec has no colon or
+    either side is empty — the single validation rule shared by every
+    code path in plan_fqdn_change() that needs to turn a malformed spec
+    into an "error"/degraded FQDNFirewallPlan.
+    """
+    device, sep, adom = raw.partition(":")
+    ok = bool(sep) and bool(device) and bool(adom)
+    return device, adom, ok
+
+
 def _fqdn_group_name(vendor: str, category: str) -> str:
     """Return GRP-<Vendor>-<Category>-DST with spaces as hyphens, ≤79 chars."""
     v = vendor.replace(" ", "-")
@@ -1377,10 +1390,19 @@ def plan_fqdn_change(
             zone_warn = f"Zone client unavailable: {exc}"
             fw_plans_degraded: list[FQDNFirewallPlan] = []
             for raw in request.firewalls:
-                device, sep, adom = raw.partition(":")
+                device, adom, ok = _parse_fqdn_firewall_spec(raw)
+                if not ok:
+                    fw_plans_degraded.append(FQDNFirewallPlan(
+                        firewall=raw, adom="", verdict="error", src_zone="Unknown",
+                        coverage="n/a", covered_entries=[],
+                        uncovered_entries=list(request.entries),
+                        proposed_objects=[], proposed_group=None, proposed_policy=None,
+                        group_append_alternative=None, degraded=True,
+                        warnings=[f"Invalid firewall spec {raw!r} — expected DEVICE:ADOM"],
+                    ))
+                    continue
                 fw_plans_degraded.append(FQDNFirewallPlan(
-                    firewall=device if sep else raw,
-                    adom=adom if sep else "",
+                    firewall=device, adom=adom,
                     verdict="unknown_no_action", src_zone="Unknown",
                     coverage="n/a", covered_entries=[],
                     uncovered_entries=list(request.entries),
@@ -1398,8 +1420,8 @@ def plan_fqdn_change(
 
     fw_plans: list[FQDNFirewallPlan] = []
     for raw in request.firewalls:
-        device, sep, adom = raw.partition(":")
-        if not sep or not device or not adom:
+        device, adom, ok = _parse_fqdn_firewall_spec(raw)
+        if not ok:
             fw_plans.append(FQDNFirewallPlan(
                 firewall=raw, adom="", verdict="error", src_zone="Unknown",
                 coverage="n/a", covered_entries=[], uncovered_entries=list(request.entries),
