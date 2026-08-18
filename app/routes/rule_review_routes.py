@@ -12,10 +12,12 @@ API (all read-only against FortiManager; POST is for submitting work items):
   GET  /api/rule-review/ai-assist-status    — is AI Assist enabled?
   POST /api/rule-review/ai-assist           — single-request AI Assist (planner + LLM narration)
   GET  /api/rule-review/devices             — device:ADOM pairs across accessible ADOMs (AI Assist typeahead)
+  POST /api/rule-review/ai-assist-fqdn      — vendor FQDN/wildcard allowlist AI Assist (planner + LLM narration)
 """
 
 import csv
 import io
+import json as _json
 
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 
@@ -144,6 +146,22 @@ def rr_packages(adom: str):
 
 # ── API: parse import file ────────────────────────────────────────────────────
 
+# Shared by rr_parse_import and rr_ai_assist_fqdn — both accept .xlsx uploads
+# and must apply the same content-type and size validation before openpyxl.
+_ALLOWED_XLSX_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/octet-stream",
+}
+
+
+def _stream_size(stream) -> int:
+    """Byte length of an uploaded file stream, leaving the position unchanged."""
+    pos = stream.tell()
+    stream.seek(0, 2)
+    size = stream.tell()
+    stream.seek(pos)
+    return size
+
 
 @bp.route("/api/rule-review/parse-import", methods=["POST"])
 @tab_required("rule_review")
@@ -169,20 +187,10 @@ def rr_parse_import():
         "application/vnd.ms-excel",
         "application/octet-stream",
     }
-    allowed_xlsx_types = {
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/octet-stream",
-    }
-
-    def _file_size(stream) -> int:
-        pos = stream.tell()
-        stream.seek(0, 2)
-        size = stream.tell()
-        stream.seek(pos)
-        return size
+    allowed_xlsx_types = _ALLOWED_XLSX_TYPES
 
     max_bytes = int(current_app.config.get("MAX_CONTENT_LENGTH", 4 * 1024 * 1024))
-    if _file_size(f.stream) > max_bytes:
+    if _stream_size(f.stream) > max_bytes:
         return jsonify({"error": "Uploaded file is too large"}), 413
 
     rows: list[dict] = []
@@ -518,8 +526,6 @@ def rr_ai_assist():
     narrative = None
     narrative_error = None
     try:
-        import json as _json
-
         from app.llm import get_provider
 
         provider = get_provider()
@@ -543,5 +549,211 @@ def rr_ai_assist():
             "narrative": narrative,
             "narrative_error": narrative_error,
             "path_relevance": path_relevance,
+        }
+    )
+
+
+# ── AI Assist: FQDN allowlist ───────────────────────────────────────────────
+
+
+@bp.route("/api/rule-review/ai-assist-fqdn", methods=["POST"])
+@tab_required("rule_review")
+def rr_ai_assist_fqdn():
+    """AI Assist (FQDN allowlist mode): run plan_fqdn_change deterministically,
+    then narrate the result with the configured LLM. Same guarantees as
+    rr_ai_assist — the deterministic plan always returns; narration is
+    best-effort."""
+    from app.app_settings import get_setting
+
+    if not get_setting("ai_assist_enabled", False):
+        return jsonify({"error": "AI Assist is not enabled"}), 503
+
+    from app.planner.fqdn_intake import parse_fqdn_rows, parse_fqdn_xlsx
+    from app.planner.models import FQDNAllowlistRequest
+
+    is_multipart = "file" in request.files
+
+    def _validate_firewalls(fws):
+        """Type- and presence-check every firewall entry before it is used to
+        build the FQDNAllowlistRequest or the ADOM-access loop — a firewall
+        entry missing "device" or "adom" (or a non-list `firewalls` value)
+        must never reach a dict-key lookup that would raise an unhandled
+        TypeError/KeyError (and surface as a raw 500)."""
+        if not isinstance(fws, list):
+            return jsonify({"error": "firewalls must be a JSON array"}), 400
+        for fw in fws:
+            if not isinstance(fw, dict) or not fw.get("device") or not fw.get("adom"):
+                return jsonify(
+                    {
+                        "error": "Each target firewall must include both a device and an ADOM "
+                        "(format: DEVICE:ADOM) — got an entry missing one or the other."
+                    }
+                ), 400
+        return None
+
+    if is_multipart:
+        src_ip = request.form.get("src_ip", "")
+        ticket_id = request.form.get("ticket_id", "")
+        try:
+            firewalls_raw = _json.loads(request.form.get("firewalls", "[]"))
+        except ValueError:
+            return jsonify({"error": "firewalls must be a JSON array"}), 400
+        # Same required-field contract as the JSON branch below.
+        if not src_ip or not firewalls_raw:
+            return jsonify(
+                {"error": "src_ip and at least one target firewall are required"}
+            ), 400
+        if err := _validate_firewalls(firewalls_raw):
+            return err
+
+        # Same upload validation as rr_parse_import — extension + content type
+        # are checked before the file ever reaches openpyxl.
+        upload = request.files["file"]
+        if not (upload.filename or "").lower().endswith(".xlsx"):
+            return jsonify({"error": "Only .xlsx uploads are supported"}), 400
+        if (upload.mimetype or "").lower() not in _ALLOWED_XLSX_TYPES:
+            return jsonify({"error": "Unsupported XLSX content type"}), 400
+        if _stream_size(upload.stream) > int(
+            current_app.config.get("MAX_CONTENT_LENGTH", 4 * 1024 * 1024)
+        ):
+            return jsonify({"error": "Uploaded file is too large"}), 413
+
+        try:
+            parsed = parse_fqdn_xlsx(
+                upload,
+                src_ip=src_ip,
+                ticket_id=ticket_id,
+                firewalls=[f"{fw['device']}:{fw['adom']}" for fw in firewalls_raw],
+            )
+        except Exception as exc:
+            return jsonify({"error": f"Could not parse uploaded .xlsx: {exc}"}), 400
+        if not parsed.entries:
+            return jsonify(
+                {
+                    "error": "No valid FQDN rows found in the uploaded file",
+                    "warnings": parsed.warnings,
+                }
+            ), 400
+        vendor = request.form.get("vendor", "") or parsed.vendor
+        category = request.form.get("category", "") or parsed.category
+    else:
+        data = request.get_json(silent=True) or {}
+        vendor = data.get("vendor", "")
+        category = data.get("category", "")
+        src_ip = data.get("src_ip", "")
+        ticket_id = data.get("ticket_id", "")
+        firewalls_raw = data.get("firewalls", [])
+        entries_raw = data.get("entries", [])
+
+        if not src_ip or not firewalls_raw or not entries_raw:
+            return jsonify(
+                {"error": "src_ip, firewalls, and at least one entry are required"}
+            ), 400
+        if not isinstance(entries_raw, list):
+            return jsonify({"error": "entries must be a JSON array"}), 400
+
+        if err := _validate_firewalls(firewalls_raw):
+            return err
+
+        # Route the manual-entry path through the same parser as the .xlsx
+        # upload path (design decision 2: "Both paths resolve to the same
+        # FQDNAllowlistRequest/FQDNEntry structures, built by one new
+        # app/planner/fqdn_intake.py module"). The parser owns illegal-character
+        # rejection, port coercion, and protocol validation, so a hostile or
+        # malformed payload produces a 400 with warnings rather than an
+        # uncaught ValueError → 500.
+        rows: list[dict] = []
+        for e in entries_raw:
+            if not isinstance(e, dict):
+                continue
+            ports_val = e.get("ports", "")
+            if isinstance(ports_val, (list, tuple)):
+                ports_val = ",".join(str(p) for p in ports_val)
+            rows.append(
+                {
+                    "fqdn": e.get("fqdn", ""),
+                    "ports": str(ports_val),
+                    "protocol": e.get("protocol", "TCP"),
+                    "required": e.get("required", True),
+                    "comment": e.get("comment", ""),
+                    # vendor/category are request-level, not per-entry, in the
+                    # JSON payload — the parser reads them off the rows.
+                    "vendor": vendor,
+                    "category": category,
+                }
+            )
+
+        parsed = parse_fqdn_rows(
+            rows,
+            src_ip=src_ip,
+            ticket_id=ticket_id,
+            firewalls=[f"{fw['device']}:{fw['adom']}" for fw in firewalls_raw],
+        )
+        if not parsed.entries:
+            return jsonify(
+                {
+                    "error": "No valid FQDN entries provided",
+                    "warnings": parsed.warnings,
+                }
+            ), 400
+
+    fqdn_request = FQDNAllowlistRequest(
+        vendor=vendor,
+        category=category,
+        src_ip=src_ip,
+        ticket_id=ticket_id,
+        firewalls=[f"{fw['device']}:{fw['adom']}" for fw in firewalls_raw],
+        entries=parsed.entries,
+    )
+    intake_warnings = list(parsed.warnings)
+    intake_missing_fields = list(parsed.missing_fields)
+
+    for fw in firewalls_raw:
+        if err := check_adom_access(fw["adom"]):
+            return err
+
+    from app.planner.engine import plan_fqdn_change, to_fqdn_report_payload
+    from app.planner.models import PlannerDataError
+
+    try:
+        with make_client() as fmg:
+            plan = plan_fqdn_change(fqdn_request, fmg_client=fmg)
+    except PlannerDataError as exc:
+        return jsonify({"error": str(exc), "source": exc.source}), 502
+    except FMGError as exc:
+        return upstream_api_error("rule_review", exc)
+    except Exception as exc:
+        return internal_api_error("rule_review", exc)
+
+    plan_dict = to_fqdn_report_payload(plan)
+    plan_dict["intake_warnings"] = intake_warnings
+    plan_dict["intake_missing_fields"] = intake_missing_fields
+
+    narrative = None
+    narrative_error = None
+    try:
+        from app.llm import get_provider
+
+        provider = get_provider()
+        narrative = provider.narrate(
+            system_prompt=(
+                "You are a firewall change analyst assistant. You are given a "
+                "structured, already-computed FQDN/wildcard allowlist change plan "
+                "as JSON — one entry per target firewall with coverage status and "
+                "any proposed address objects/group/policy. Write a clear, concise "
+                "report for a peer reviewer: summarize coverage per firewall, what "
+                "needs to be created, and any warnings. Never invent or change any "
+                "value in the plan — only explain it in prose."
+            ),
+            user_prompt=_json.dumps(plan_dict, default=str),
+        )
+    except Exception as exc:
+        narrative_error = str(exc)
+
+    return jsonify(
+        {
+            "plan": plan_dict,
+            "narrative": narrative,
+            "narrative_error": narrative_error,
         }
     )
