@@ -5,6 +5,15 @@ All notable changes to 4THealth+ are documented in this file.
 ## [Unreleased]
 
 ### Added
+- FQDN Allowlist mode in Rule Validation's AI Assist panel: submit a vendor's
+  FQDN/wildcard-FQDN allowlist request — manual entry rows or an uploaded
+  `.xlsx` sheet — and get a deterministic per-firewall coverage analysis plus
+  proposed FortiGate CLI (address objects, destination group, policy) for
+  anything not already covered, with the same best-effort LLM narration
+  guarantee as the existing single-change mode
+  (`app/planner/fqdn_intake.py`, `app/planner/engine.py::plan_fqdn_change`,
+  `POST /api/rule-review/ai-assist-fqdn`). Existing `plan_change()` now
+  rejects non-IP src/dst up front, pointing callers at `plan_fqdn_change()`.
 - AI-generated trend summary on the Admin page's host resource graphs
   (CPU/Memory/Disk): deterministic 7-day trend statistics (percent change,
   slope, days-to-threshold projection) computed in Python, then phrased by
@@ -31,3 +40,35 @@ All notable changes to 4THealth+ are documented in this file.
   (Python package name, systemd service name, Docker image/container names,
   file paths, RADIUS/AD literal values) intentionally left unchanged to match
   the existing deployment tooling.
+
+### Fixed
+- CLI injection in generated FortiGate config: FQDN/vendor/category-derived
+  object, group, and policy names/comments were interpolated into generated
+  CLI without escaping. Closed with two defense layers — input sanitization
+  in `app/planner/engine.py` plus `_safe_cli_str()` escaping at every CLI
+  generation sink in `app/planner/cli_gen.py`, including `policy_cli()`
+  (shared with the pre-existing IP-based planning path).
+- FQDN Allowlist mode's rendered CLI showed the literal `<TICKET_ID>`
+  placeholder in every object/group/policy comment even when a real ticket
+  ID was supplied — the substitution was never wired through. Fixed for
+  both the FQDN and IP-based planning paths (`app/planner/cli_gen.py`,
+  `app/planner/engine.py`).
+- `app/planner/fetch.py`'s routing-table parsing read the *static route
+  config* field names (`dst`/`device`) instead of the field names FortiOS's
+  live monitor API actually returns (`ip_mask`/`interface`), so the
+  default-route/interface-resolution fallback silently found nothing
+  against real FortiManager data even when a default route was plainly
+  visible in the Firewalls tab.
+- FQDN Allowlist mode's destination-interface resolution now looks up the
+  device's default route (`0.0.0.0/0`) directly instead of inferring it by
+  longest-prefix-matching a hardcoded `8.8.8.8` sentinel IP against the
+  routing table — avoids a false match against an unrelated, more-specific
+  static route that happens to cover that one sentinel IP.
+- FQDN Allowlist mode no longer emits a spurious "'ANY' is not a valid
+  IP/CIDR" warning alongside the correct built-in-`all`-object warning when
+  the source IP is `any`/`all`/a named object.
+- FQDN Allowlist mode's result panel now shows a labeled summary (policy
+  name, target package, interfaces, service) above the generated CLI,
+  split into "New Address/Service Objects", "New Destination Group", and
+  "New Policy" sections, instead of one unlabeled block of concatenated
+  CLI (`app/static/js/rule_review.js`).
