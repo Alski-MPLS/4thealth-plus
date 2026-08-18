@@ -83,7 +83,9 @@ def _normalize_cidr(ip: str) -> str:
     return str(net)
 
 
-def _address_object_plan(role: str, ip: str, snapshot: DeviceSnapshot) -> ObjectPlan:
+def _address_object_plan(
+    role: str, ip: str, snapshot: DeviceSnapshot, ticket_id: str = ""
+) -> ObjectPlan:
     cidr = _normalize_cidr(ip)
     existing = snapshot.addr_catalog.exact_match_name(cidr)
     if existing:
@@ -106,11 +108,13 @@ def _address_object_plan(role: str, ip: str, snapshot: DeviceSnapshot) -> Object
         name=name,
         obj_type=obj_type,
         value=cidr,
-        cli=cli_gen.address_object_cli(name, cidr),
+        cli=cli_gen.address_object_cli(name, cidr, ticket_id),
     )
 
 
-def _service_object_plan(token: str, snapshot: DeviceSnapshot) -> ObjectPlan:
+def _service_object_plan(
+    token: str, snapshot: DeviceSnapshot, ticket_id: str = ""
+) -> ObjectPlan:
     ranges = parse_service_request(token)
     if any(r.protocol == "ip" for r in ranges):
         # wildcard service — FortiGate's built-in ALL object, never created
@@ -135,7 +139,7 @@ def _service_object_plan(token: str, snapshot: DeviceSnapshot) -> ObjectPlan:
         name=name,
         obj_type="service",
         value=f"{r.protocol}/{port_expr}",
-        cli=cli_gen.service_object_cli(name, r.protocol, port_expr),
+        cli=cli_gen.service_object_cli(name, r.protocol, port_expr, ticket_id),
     )
 
 
@@ -227,7 +231,7 @@ def _side_plan(
             name=gname,
             obj_type="group",
             value=", ".join(names),
-            cli=cli_gen.addrgrp_create_cli(gname, names),
+            cli=cli_gen.addrgrp_create_cli(gname, names, ticket_id=ticket_id),
         )
         return [gname], [group]
     return names, []
@@ -362,13 +366,13 @@ def _plan_firewall(
     # --- new rule (or exception) -------------------------------------------
 
     src_objs = _dedupe_objects(
-        [_address_object_plan("source", s, snapshot) for s in flow.srcs]
+        [_address_object_plan("source", s, snapshot, ticket_id) for s in flow.srcs]
     )
     dst_objs = _dedupe_objects(
-        [_address_object_plan("destination", d, snapshot) for d in flow.dsts]
+        [_address_object_plan("destination", d, snapshot, ticket_id) for d in flow.dsts]
     )
     svc_objs = _dedupe_objects(
-        [_service_object_plan(tok, snapshot) for tok in flow.services]
+        [_service_object_plan(tok, snapshot, ticket_id) for tok in flow.services]
     )
 
     src_refs, src_groups = _side_plan(src_objs, src_group, ticket_id, "SRC")
@@ -419,7 +423,13 @@ def _plan_firewall(
     fw.insertion = insertion
 
     blocked = zone_verdict.get("verdict") == "BLOCKED"
-    comments = cli_gen.exception_comment(ticket_id) if blocked else "Ticket <TICKET_ID>"
+    comments = (
+        cli_gen.exception_comment(ticket_id)
+        if blocked
+        else f"Ticket {ticket_id}"
+        if ticket_id
+        else "Ticket <TICKET_ID>"
+    )
 
     fw.policy_cli = cli_gen.policy_cli(
         name=fw.policy_name,
@@ -1278,6 +1288,7 @@ def _plan_fqdn_firewall(
     obj_warnings: list[str] = []
     proposed_objects: list[FQDNAddressObject] = []
     seen_names: set[str] = set()
+    ticket_label = request.ticket_id or "<TICKET_ID>"
     for entry in fw.uncovered_entries:
         obj_type, name = _fqdn_object_name(entry.fqdn)
         if name.endswith("..."):
@@ -1300,7 +1311,10 @@ def _plan_fqdn_firewall(
                 f"Object name collision for {entry.fqdn!r}: renamed to {name!r}"
             )
         seen_names.add(name)
-        comment_str = f"{entry.comment or (request.vendor + ' ' + request.category)} - <TICKET_ID>"
+        comment_str = (
+            f"{entry.comment or (request.vendor + ' ' + request.category)} - "
+            f"{ticket_label}"
+        )
         cli_fn = (
             cli_gen.fqdn_address_object_cli
             if obj_type == "fqdn"
@@ -1326,12 +1340,17 @@ def _plan_fqdn_firewall(
         if r["covered"] and r["address_object_name"]
     ]
     all_member_names = existing_obj_names + [o.name for o in proposed_objects]
-    group_comment = f"{request.vendor} {request.category} - <TICKET_ID>"
+    group_comment = f"{request.vendor} {request.category} - {ticket_label}"
     fw.proposed_group = FQDNAddrGroup(
         name=group_name,
         members=all_member_names,
         comment=group_comment,
-        cli=cli_gen.addrgrp_create_cli(group_name, all_member_names, warn_replace=True),
+        cli=cli_gen.addrgrp_create_cli(
+            group_name,
+            all_member_names,
+            warn_replace=True,
+            ticket_id=request.ticket_id,
+        ),
     )
 
     # GroupAppendAlternative (Option B) for partial coverage
@@ -1378,7 +1397,9 @@ def _plan_fqdn_firewall(
             value=request.src_ip,
         )
     else:
-        src_obj = _address_object_plan("source", request.src_ip, snapshot)
+        src_obj = _address_object_plan(
+            "source", request.src_ip, snapshot, request.ticket_id
+        )
 
     # Service objects — one per unique (protocol, port) pair across uncovered entries
     seen_svc: set[tuple[str, int]] = set()
@@ -1393,7 +1414,7 @@ def _plan_fqdn_firewall(
                 svc_names.append(svc_name)
                 svc_cli_blocks.append(
                     cli_gen.service_object_cli(
-                        svc_name, entry.protocol.lower(), str(port)
+                        svc_name, entry.protocol.lower(), str(port), request.ticket_id
                     )
                 )
     if not svc_names:
@@ -1413,7 +1434,7 @@ def _plan_fqdn_firewall(
         service=svc_names,
         logtraffic="all" if log_cfg.get("log_end", True) else "disable",
         logtraffic_start=bool(log_cfg.get("log_start", False)),
-        comments=f"FQDN allowlist {request.vendor} {request.category} <TICKET_ID>",
+        comments=f"FQDN allowlist {request.vendor} {request.category} {ticket_label}",
         insert_before=None,
     )
     fw.proposed_policy = {

@@ -24,28 +24,32 @@ def _safe_cli_str(s: str) -> str:
     return s.replace('"', "''").replace("\n", "").replace("\r", "")
 
 
-def address_object_cli(name: str, cidr: str) -> str:
+def address_object_cli(name: str, cidr: str, ticket_id: str = "") -> str:
     net = ipaddress.ip_network(cidr, strict=False)
+    comment = _safe_cli_str(ticket_id) if ticket_id else "<TICKET_ID>"
     return (
         "config firewall address\n"
         f'    edit "{name}"\n'
         "        set type ipmask\n"
         f"        set subnet {net.network_address} {net.netmask}\n"
-        '        set comment "<TICKET_ID>"\n'
+        f'        set comment "{comment}"\n'
         "    next\n"
         "end"
     )
 
 
-def service_object_cli(name: str, proto: str, port_expr: str) -> str:
+def service_object_cli(
+    name: str, proto: str, port_expr: str, ticket_id: str = ""
+) -> str:
     proto = proto.lower()
     if proto not in ("tcp", "udp", "sctp"):
         raise ValueError(f"Cannot generate a service object for protocol {proto!r}")
+    comment = _safe_cli_str(ticket_id) if ticket_id else "<TICKET_ID>"
     return (
         "config firewall service custom\n"
         f'    edit "{name}"\n'
         f"        set {proto}-portrange {port_expr}\n"
-        '        set comment "<TICKET_ID>"\n'
+        f'        set comment "{comment}"\n'
         "    next\n"
         "end"
     )
@@ -118,7 +122,7 @@ def policy_addr_append_cli(policy_id: int, key: str, members: list[str]) -> str:
 
 
 def addrgrp_create_cli(
-    name: str, members: list[str], warn_replace: bool = False
+    name: str, members: list[str], warn_replace: bool = False, ticket_id: str = ""
 ) -> str:
     """CLI to create a new address group with the given members.
 
@@ -127,11 +131,12 @@ def addrgrp_create_cli(
     a group may already exist in FortiManager.
     """
     quoted = " ".join(f'"{m}"' for m in members)
+    comment = _safe_cli_str(ticket_id) if ticket_id else "<TICKET_ID>"
     body = (
         "config firewall addrgrp\n"
         f'    edit "{_safe_cli_str(name)}"\n'
         f"        set member {quoted}\n"
-        '        set comment "<TICKET_ID>"\n'
+        f'        set comment "{comment}"\n'
         "    next\n"
         "end"
     )

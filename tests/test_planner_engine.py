@@ -380,6 +380,59 @@ def test_plan_fqdn_change_proposes_objects_for_uncovered_entries():
     assert fw.proposed_objects[0].name == "FQDN-new.vendor.com"
     assert fw.proposed_group.name == "GRP-Vendor-Co-API-DST"
     assert "SVC_TCP_443" in fw.proposed_policy["service"]
+    # The real ticket_id ("CHG1") must appear in every generated comment —
+    # not the literal "<TICKET_ID>" placeholder — across every CLI block.
+    assert "CHG1" in fw.proposed_objects[0].cli
+    assert "<TICKET_ID>" not in fw.proposed_objects[0].cli
+    assert "CHG1" in fw.proposed_group.cli
+    assert "<TICKET_ID>" not in fw.proposed_group.cli
+    assert "CHG1" in fw.proposed_policy["cli"]
+    assert "<TICKET_ID>" not in fw.proposed_policy["cli"]
+
+
+def test_plan_fqdn_change_missing_ticket_id_falls_back_to_placeholder():
+    """No ticket_id supplied -> the literal <TICKET_ID> placeholder is kept
+    (an engineer fills it in before applying), never a blank/None comment."""
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+
+    fake_fmg = MagicMock()
+    fake_fmg.get_devices.return_value = [{"name": "FW-A"}]
+    fake_fmg.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    fake_fmg.get_policies.return_value = []
+    fake_fmg.get_address_objects.return_value = []
+    fake_fmg.get_address_groups.return_value = []
+    fake_fmg.get_service_objects.return_value = []
+    fake_fmg.get_service_groups.return_value = []
+    fake_fmg.get_device_interfaces.return_value = []
+    fake_fmg.get_device_routes.return_value = []
+
+    fake_zc = MagicMock()
+    fake_zc.query.return_value = [
+        {
+            "verdict": "ALLOWED",
+            "src_zones": ["OT-LAN"],
+            "dst_zones": ["Internet"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
+    fake_zc.zones.return_value = {"zones": [], "total_subnets": 0}
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+    fw = plan.per_firewall[0]
+    assert "<TICKET_ID>" in fw.proposed_objects[0].cli
+    assert "<TICKET_ID>" in fw.proposed_group.cli
+    assert "<TICKET_ID>" in fw.proposed_policy["cli"]
 
 
 def test_plan_fqdn_change_resolves_dstintf_via_default_route():
