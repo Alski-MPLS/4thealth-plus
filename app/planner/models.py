@@ -137,3 +137,71 @@ class ChangePlan:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class FQDNEntry:
+    """One vendor-supplied FQDN/wildcard-FQDN allowlist row."""
+
+    fqdn: str
+    is_wildcard: bool
+    ports: list[int]
+    protocol: str  # "TCP" | "UDP"
+    required: bool
+    comment: str
+
+
+@dataclass
+class FQDNAllowlistRequest:
+    """A normalized vendor FQDN allowlist request — the FQDN-path
+    equivalent of NormalizedFlow. firewalls are "DEVICE:ADOM" strings,
+    matching plan_fqdn_change()'s parsing."""
+
+    vendor: str
+    category: str
+    src_ip: str
+    ticket_id: str
+    firewalls: list[str]
+    entries: list[FQDNEntry]
+    warnings: list[str] = field(default_factory=list)
+    missing_fields: list[str] = field(default_factory=list)
+
+
+@dataclass
+class FQDNAddressObject:
+    name: str  # e.g. "FQDN-axm-adm-scep.apple.com" / "WFQDN-push.apple.com"
+    obj_type: str  # "fqdn" | "wildcard-fqdn"
+    value: str  # e.g. "*.push.apple.com"
+    comment: str
+    cli: str = ""
+
+
+@dataclass
+class FQDNAddrGroup:
+    name: str  # "GRP-Apple-APNs-DST"
+    members: list[str]  # object names
+    comment: str
+    cli: str = ""
+
+
+@dataclass
+class FQDNFirewallPlan:
+    firewall: str
+    adom: str
+    verdict: str  # "blocked_exception" | "already_covered" | "new_rule" | "partial_coverage" | "unknown_no_action" | "error"
+    src_zone: str
+    coverage: str  # "already_covered" | "partial_coverage" | "new_rule" | "n/a"
+    covered_entries: list[FQDNEntry]
+    uncovered_entries: list[FQDNEntry]
+    proposed_objects: list[FQDNAddressObject]
+    proposed_group: FQDNAddrGroup | None
+    proposed_policy: dict | None
+    group_append_alternative: GroupAppendAlternative | None
+    degraded: bool
+    warnings: list[str]
+
+
+@dataclass
+class FQDNChangePlan:
+    request: FQDNAllowlistRequest
+    per_firewall: list[FQDNFirewallPlan]

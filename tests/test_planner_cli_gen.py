@@ -12,6 +12,9 @@ from app.planner.cli_gen import (
     exception_comment,
     policy_cli,
     service_object_cli,
+    addrgrp_create_cli,
+    fqdn_address_object_cli,
+    wildcard_fqdn_address_object_cli,
 )
 
 
@@ -138,3 +141,120 @@ def test_addrgrp_create_cli_exact():
         '    next\n'
         'end'
     )
+
+
+def test_fqdn_address_object_cli():
+    cli = fqdn_address_object_cli("FQDN-api.vendor.com", "api.vendor.com", "Vendor API - CHG1")
+    assert cli == (
+        'config firewall address\n'
+        '    edit "FQDN-api.vendor.com"\n'
+        '        set type fqdn\n'
+        '        set fqdn "api.vendor.com"\n'
+        '        set comment "Vendor API - CHG1"\n'
+        '    next\n'
+        'end'
+    )
+
+
+def test_wildcard_fqdn_address_object_cli():
+    cli = wildcard_fqdn_address_object_cli("WFQDN-push.apple.com", "*.push.apple.com")
+    assert 'set type wildcard-fqdn' in cli
+    assert 'set wildcard-fqdn "*.push.apple.com"' in cli
+    assert 'set comment' not in cli  # no comment passed
+
+
+def test_fqdn_address_object_cli_escapes_quotes_and_strips_newlines():
+    cli = fqdn_address_object_cli("FQDN-x", 'evil"fqdn\ninjected', "")
+    assert '"' not in cli.split('set fqdn "')[1].split('"')[0].replace("''", "")
+    assert "\n" not in cli.split('set fqdn "')[1].split('"')[0]
+
+
+def test_addrgrp_create_cli_warn_replace_prepends_warning():
+    cli = addrgrp_create_cli("GRP-DST", ["A", "B"], warn_replace=True)
+    assert cli.startswith("# WARNING: 'set member' replaces all existing members.")
+    assert 'set member "A" "B"' in cli
+
+
+def test_addrgrp_create_cli_default_no_warning():
+    cli = addrgrp_create_cli("GRP-DST", ["A"])
+    assert not cli.startswith("#")
+
+
+# ── Finding 1: CLI injection via the `name` argument ────────────────────────
+
+_MALICIOUS_NAME = 'X"\n    next\nend\nconfig system admin\n    edit "evil'
+
+
+def _edit_lines(cli: str) -> list[str]:
+    return [ln for ln in cli.splitlines() if ln.strip().startswith("edit ")]
+
+
+def test_fqdn_address_object_cli_escapes_injection_in_name():
+    cli = fqdn_address_object_cli(_MALICIOUS_NAME, "api.vendor.com", "")
+    edits = _edit_lines(cli)
+    assert len(edits) == 1
+    # The whole malicious payload collapsed onto the single edit line.
+    assert edits[0].strip().startswith('edit "')
+    assert edits[0].strip().endswith('"')
+    # No injected structural keywords escaped onto their own lines.
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped
+    assert "\n" not in edits[0]
+
+
+def test_wildcard_fqdn_address_object_cli_escapes_injection_in_name():
+    cli = wildcard_fqdn_address_object_cli(_MALICIOUS_NAME, "*.vendor.com")
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped
+
+
+def test_addrgrp_create_cli_escapes_injection_in_name():
+    cli = addrgrp_create_cli(_MALICIOUS_NAME, ["A"])
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    assert "config system admin" not in stripped
+
+
+def test_policy_cli_escapes_injection_in_name_and_comments():
+    hostile = (
+        'X"\r\n    next\nend\nconfig system admin\n    edit "evil\nnext\nend'
+    )
+    cli = policy_cli(
+        name=hostile,
+        srcintf="port1",
+        dstintf="port2",
+        srcaddr=["SRC"],
+        dstaddr=["DST"],
+        service=["ALL"],
+        logtraffic="all",
+        logtraffic_start=True,
+        comments=hostile,
+        insert_before=None,
+    )
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    # Exactly the single-policy shape: one config/edit 0/next/end.
+    assert stripped.count("config firewall policy") == 1
+    assert len([ln for ln in stripped if ln.startswith("config ")]) == 1
+    assert stripped.count("edit 0") == 1
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    # No injected structural statements from the hostile payload.
+    assert "config system admin" not in stripped
+    assert 'edit "evil' not in stripped
+    # Payload collapsed onto the single-line quoted fields, quotes escaped.
+    name_line = next(ln for ln in stripped if ln.startswith("set name "))
+    comment_line = next(ln for ln in stripped if ln.startswith("set comments "))
+    for line in (name_line, comment_line):
+        assert line.endswith('"')
+        # Only the two delimiting quotes survive; inner quotes became ''.
+        assert line.replace("''", "").count('"') == 2
+        assert "''" in line
+        assert "\n" not in line and "\r" not in line

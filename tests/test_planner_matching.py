@@ -566,3 +566,33 @@ def test_parse_service_request_case_insensitive_multi_proto():
 def test_parse_service_request_multi_proto_still_rejects_garbage():
     with pytest.raises(ValueError, match="Cannot interpret"):
         parse_service_request("tcp and banana for 53")
+
+
+# ---------------------------------------------------------------------------
+# FQDNCatalog
+# ---------------------------------------------------------------------------
+
+from app.planner.matching import FQDNCatalog
+
+
+def test_fqdn_catalog_resolves_fqdn_and_wildcard_objects():
+    objects = [
+        {"name": "FQDN-a", "type": "fqdn", "fqdn": "api.vendor.com"},
+        {"name": "WFQDN-a", "type": "wildcard-fqdn", "wildcard-fqdn": "*.push.apple.com"},
+        {"name": "H_10.1.1.1", "type": "ipmask", "subnet": "10.1.1.1/32"},
+    ]
+    cat = FQDNCatalog(objects, groups=[])
+    assert cat.fqdns_for_ref("FQDN-a") == {"api.vendor.com"}
+    assert cat.fqdns_for_ref("WFQDN-a") == {"*.push.apple.com"}
+    assert cat.fqdns_for_ref("H_10.1.1.1") == set()  # known, no FQDNs
+    assert cat.fqdns_for_ref("unknown") is None
+
+
+def test_fqdn_catalog_resolves_group_members():
+    objects = [{"name": "FQDN-a", "type": "fqdn", "fqdn": "api.vendor.com"}]
+    groups = [{"name": "GRP-DST", "member": ["FQDN-a"]}]
+    cat = FQDNCatalog(objects, groups)
+    assert cat.fqdns_for_ref("GRP-DST") == {"api.vendor.com"}
+    assert cat.exact_match_name("api.vendor.com") == "FQDN-a"
+    assert cat.groups_containing_fqdn("api.vendor.com") == {"GRP-DST"}
+    assert cat.groups_containing_fqdn("nope.com") == set()

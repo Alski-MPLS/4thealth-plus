@@ -123,7 +123,12 @@
     AI Assist is not enabled on this server. Ask an admin to enable it under Admin &rarr; AI Assist.
   </div>
 
-  <form id="rrAiForm" class="rr-form">
+  <div class="rr-ai-mode-toggle" style="margin-bottom:1rem;display:flex;gap:.5rem">
+    <button type="button" class="btn btn-sm btn-primary" id="rrAiModeSingle">Single Change</button>
+    <button type="button" class="btn btn-sm btn-secondary" id="rrAiModeFqdn">FQDN Allowlist</button>
+  </div>
+
+  <form id="rrAiForm" class="rr-form" style="display:">
     <div class="rr-form-row">
       <label for="rrAiSrc">Source IP(s)</label>
       <textarea id="rrAiSrc" placeholder="10.1.2.3 or comma/newline separated"></textarea>
@@ -161,8 +166,63 @@
     <button type="submit" class="btn btn-primary" id="rrAiSubmitBtn">Run AI Assist</button>
   </form>
 
+  <form id="rrAiFqdnForm" class="rr-form" style="display:none">
+    <div class="rr-form-row">
+      <label for="rrAiFqdnVendor">Vendor</label>
+      <input type="text" id="rrAiFqdnVendor" placeholder="Apple">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiFqdnCategory">Category</label>
+      <input type="text" id="rrAiFqdnCategory" placeholder="APNs">
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiFqdnSrc">Source IP</label>
+      <input type="text" id="rrAiFqdnSrc" placeholder="10.1.2.3, or 'any'">
+    </div>
+    <div class="rr-form-row" style="position:relative">
+      <label for="rrAiFqdnFirewalls">Target firewall(s)</label>
+      <input type="text" id="rrAiFqdnFirewalls" placeholder="FW01:OT-ADOM, FW02:OT-ADOM" autocomplete="off">
+      <span class="rr-field-hint">Format: DEVICE:ADOM, comma-separated for multiple — start typing a device name to search</span>
+      <ul id="rrAiFqdnFirewallSuggestions" class="rr-suggestions" style="display:none"></ul>
+    </div>
+    <div class="rr-form-row">
+      <label for="rrAiFqdnTicket">Ticket ID</label>
+      <input type="text" id="rrAiFqdnTicket" placeholder="CHG0012345">
+    </div>
+
+    <div class="rr-form-row">
+      <label for="rrAiFqdnFile">Upload vendor allowlist (.xlsx)</label>
+      <input type="file" id="rrAiFqdnFile" accept=".xlsx">
+      <span class="rr-field-hint">Columns: Hostname/Domain, Ports, Protocol, Vendor, Category, Required?, Purpose/Notes. If a file is attached, manually-entered rows below are ignored.</span>
+    </div>
+
+    <div class="rr-form-row">
+      <label>Or enter rows manually</label>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>FQDN / Wildcard</th>
+              <th>Ports</th>
+              <th>Protocol</th>
+              <th>Required</th>
+              <th>Comment</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rrAiFqdnRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-sm" id="rrAiFqdnAddRowBtn">+ Add Row</button>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="rrAiFqdnSubmitBtn">Run AI Assist</button>
+  </form>
+
   <div id="rrAiRunning" class="rr-running" style="display:none">Running planner and generating report&hellip;</div>
+  <div id="rrAiFqdnRunning" class="rr-running" style="display:none">Running planner and generating report&hellip;</div>
   <div id="rrAiError" class="rr-error" style="display:none"></div>
+  <div id="rrAiFqdnError" class="rr-error" style="display:none"></div>
 
   <div id="rrAiResult" style="display:none">
     <h3>Verdict: <span id="rrAiVerdict"></span></h3>
@@ -177,6 +237,14 @@
     <pre id="rrAiCliOutput"></pre>
     <button type="button" class="btn btn-sm" id="rrAiCopyBtn">Copy CLI</button>
     <button type="button" class="btn btn-sm" id="rrAiDownloadBtn">Download Peer Review Package</button>
+  </div>
+
+  <div id="rrAiFqdnResult" style="display:none">
+    <div id="rrAiFqdnWarnings" class="alert alert-warning" style="display:none"></div>
+    <div id="rrAiFqdnPerFirewall"></div>
+    <h3>AI-Generated Report</h3>
+    <div id="rrAiFqdnNarrativeError" class="rr-notice" style="display:none"></div>
+    <div id="rrAiFqdnNarrative" class="rr-narrative"></div>
   </div>
 </section>
 
