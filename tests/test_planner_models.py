@@ -48,3 +48,40 @@ def test_planner_data_error_fields():
     assert err.source == "fortimanager"
     assert "unreachable" in err.detail
     assert "[fortimanager]" in str(err)
+
+
+from app.planner.models import (
+    FQDNAddressObject,
+    FQDNAddrGroup,
+    FQDNAllowlistRequest,
+    FQDNChangePlan,
+    FQDNEntry,
+    FQDNFirewallPlan,
+)
+
+
+def test_fqdn_models_roundtrip():
+    entry = FQDNEntry(
+        fqdn="push.apple.com", is_wildcard=False, ports=[443, 5223],
+        protocol="TCP", required=True, comment="APNs",
+    )
+    req = FQDNAllowlistRequest(
+        vendor="Apple", category="APNs", src_ip="10.1.1.1", ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"], entries=[entry],
+    )
+    obj = FQDNAddressObject(
+        name="FQDN-push.apple.com", obj_type="fqdn", value="push.apple.com",
+        comment="APNs - CHG1", cli="config firewall address\n...",
+    )
+    group = FQDNAddrGroup(name="GRP-Apple-APNs-DST", members=[obj.name],
+                           comment="Apple APNs - CHG1", cli="config firewall addrgrp\n...")
+    fw_plan = FQDNFirewallPlan(
+        firewall="FW-A", adom="OT-ADOM", verdict="new_rule", src_zone="OT-LAN",
+        coverage="new_rule", covered_entries=[], uncovered_entries=[entry],
+        proposed_objects=[obj], proposed_group=group, proposed_policy={"name": "p"},
+        group_append_alternative=None, degraded=False, warnings=[],
+    )
+    plan = FQDNChangePlan(request=req, per_firewall=[fw_plan])
+
+    assert plan.per_firewall[0].proposed_group.name == "GRP-Apple-APNs-DST"
+    assert plan.request.entries[0].fqdn == "push.apple.com"
