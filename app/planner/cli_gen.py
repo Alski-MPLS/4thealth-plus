@@ -67,7 +67,7 @@ def policy_cli(
     lines = [
         "config firewall policy",
         "    edit 0",
-        f'        set name "{name}"',
+        f'        set name "{_safe_cli_str(name)}"',
         f'        set srcintf "{srcintf}"',
         f'        set dstintf "{dstintf}"',
         f"        set srcaddr {_quote_list(srcaddr)}",
@@ -80,7 +80,7 @@ def policy_cli(
     if logtraffic_start:
         lines.append("        set logtraffic-start enable")
     if comments:
-        lines.append(f'        set comments "{comments}"')
+        lines.append(f'        set comments "{_safe_cli_str(comments)}"')
     lines += ["    next", "end"]
 
     if insert_before is not None:

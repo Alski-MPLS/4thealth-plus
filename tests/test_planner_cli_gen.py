@@ -220,3 +220,41 @@ def test_addrgrp_create_cli_escapes_injection_in_name():
     assert stripped.count("next") == 1
     assert stripped.count("end") == 1
     assert "config system admin" not in stripped
+
+
+def test_policy_cli_escapes_injection_in_name_and_comments():
+    hostile = (
+        'X"\r\n    next\nend\nconfig system admin\n    edit "evil\nnext\nend'
+    )
+    cli = policy_cli(
+        name=hostile,
+        srcintf="port1",
+        dstintf="port2",
+        srcaddr=["SRC"],
+        dstaddr=["DST"],
+        service=["ALL"],
+        logtraffic="all",
+        logtraffic_start=True,
+        comments=hostile,
+        insert_before=None,
+    )
+    stripped = [ln.strip() for ln in cli.splitlines()]
+    # Exactly the single-policy shape: one config/edit 0/next/end.
+    assert stripped.count("config firewall policy") == 1
+    assert len([ln for ln in stripped if ln.startswith("config ")]) == 1
+    assert stripped.count("edit 0") == 1
+    assert len(_edit_lines(cli)) == 1
+    assert stripped.count("next") == 1
+    assert stripped.count("end") == 1
+    # No injected structural statements from the hostile payload.
+    assert "config system admin" not in stripped
+    assert 'edit "evil' not in stripped
+    # Payload collapsed onto the single-line quoted fields, quotes escaped.
+    name_line = next(ln for ln in stripped if ln.startswith("set name "))
+    comment_line = next(ln for ln in stripped if ln.startswith("set comments "))
+    for line in (name_line, comment_line):
+        assert line.endswith('"')
+        # Only the two delimiting quotes survive; inner quotes became ''.
+        assert line.replace("''", "").count('"') == 2
+        assert "''" in line
+        assert "\n" not in line and "\r" not in line
