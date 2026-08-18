@@ -390,6 +390,116 @@ def test_plan_fqdn_change_proposes_objects_for_uncovered_entries():
     assert "<TICKET_ID>" not in fw.proposed_policy["cli"]
 
 
+def _base_fqdn_fmg_mock(**overrides):
+    fake_fmg = MagicMock()
+    fake_fmg.get_devices.return_value = [{"name": "FW-A"}]
+    fake_fmg.get_policy_packages.return_value = [
+        {"name": "pkg1", "path": "pkg1"},
+        {"name": "pkg2", "path": "pkg2"},
+    ]
+    fake_fmg.get_policies.return_value = []
+    fake_fmg.get_address_objects.return_value = []
+    fake_fmg.get_address_groups.return_value = []
+    fake_fmg.get_service_objects.return_value = []
+    fake_fmg.get_service_groups.return_value = []
+    fake_fmg.get_device_interfaces.return_value = []
+    fake_fmg.get_device_routes.return_value = []
+    for k, v in overrides.items():
+        getattr(fake_fmg, k).return_value = v
+    return fake_fmg
+
+
+def _base_fqdn_zc_mock():
+    fake_zc = MagicMock()
+    fake_zc.query.return_value = [
+        {
+            "verdict": "ALLOWED",
+            "src_zones": ["OT-LAN"],
+            "dst_zones": ["Internet"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
+    fake_zc.zones.return_value = {"zones": [], "total_subnets": 0}
+    return fake_zc
+
+
+def test_plan_fqdn_change_uses_actually_installed_package_not_first_scoped():
+    """Two packages are scoped to this ADOM; only "pkg2" is actually
+    installed on the device per FortiManager's device database — the
+    proposed policy's package must be "pkg2", not "pkg1" (the first
+    package FortiManager happened to list)."""
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+    fake_fmg = _base_fqdn_fmg_mock(
+        get_device_policy_package=[{"name": "pkg2", "vdom": "root"}],
+    )
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=_base_fqdn_zc_mock())
+
+    fw = plan.per_firewall[0]
+    assert fw.proposed_policy["package"] == "pkg2"
+
+
+def test_plan_fqdn_change_multi_vdom_prefers_root_and_warns():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+    fake_fmg = _base_fqdn_fmg_mock(
+        get_device_policy_package=[
+            {"name": "pkg1", "vdom": "dmz"},
+            {"name": "pkg2", "vdom": "root"},
+        ],
+    )
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=_base_fqdn_zc_mock())
+
+    fw = plan.per_firewall[0]
+    assert fw.proposed_policy["package"] == "pkg2"
+    assert any("policy packages installed across VDOMs" in w for w in fw.warnings)
+
+
+def test_plan_fqdn_change_no_installed_package_falls_back_and_warns():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+    fake_fmg = _base_fqdn_fmg_mock(get_device_policy_package=[])
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=_base_fqdn_zc_mock())
+
+    fw = plan.per_firewall[0]
+    assert fw.proposed_policy["package"] == "pkg1"  # first ADOM-scoped package
+    assert any(
+        "Could not determine the policy package actually installed" in w
+        for w in fw.warnings
+    )
+
+
 def test_plan_fqdn_change_missing_ticket_id_falls_back_to_placeholder():
     """No ticket_id supplied -> the literal <TICKET_ID> placeholder is kept
     (an engineer fills it in before applying), never a blank/None comment."""
