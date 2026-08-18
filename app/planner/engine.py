@@ -175,7 +175,7 @@ def _fqdn_object_name(fqdn_str: str) -> tuple[str, str]:
     is_wildcard = fqdn_str.startswith("*.")
     safe = _sanitize_object_name_part(fqdn_str)
     if is_wildcard:
-        name = f"WFQDN-{safe[2:] if safe.startswith('*.') else safe}"
+        name = f"WFQDN-{safe.removeprefix('*.')}"
         obj_type = "wildcard-fqdn"
     else:
         name = f"FQDN-{safe}"
@@ -1268,7 +1268,7 @@ def _plan_fqdn_firewall(
         # identical truncated names; disambiguate by appending -2, -3, etc.
         if name in seen_names:
             suffix_n = 2
-            base = name[:-3] if name.endswith("...") else name
+            base = name.removesuffix("...")
             while True:
                 suffix = f"-{suffix_n}"
                 candidate = base[: _FQDN_NAME_MAX - len(suffix)] + suffix
@@ -1320,10 +1320,12 @@ def _plan_fqdn_firewall(
             # group. Say so explicitly rather than letting an empty
             # affected_policies list read as "blast radius is zero".
             warnings=[
-                f"Blast radius not computed for this alternative — appending to "
-                f"{partial['group_name']!r} affects every other policy that "
-                f"references it, directly or via group nesting. Verify manually "
-                f"before appending."
+                (
+                    f"Blast radius not computed for this alternative — appending to "
+                    f"{partial['group_name']!r} affects every other policy that "
+                    f"references it, directly or via group nesting. Verify manually "
+                    f"before appending."
+                )
             ],
         )
 
