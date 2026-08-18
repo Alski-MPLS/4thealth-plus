@@ -290,6 +290,45 @@ def resolve_interfaces(
     return srcintf, dstintf, warnings
 
 
+def resolve_default_route_interface(
+    snapshot: DeviceSnapshot,
+    label: str = "Destination",
+) -> tuple[str, list[str]]:
+    """Find the interface carrying the device's enabled default route
+    (0.0.0.0/0). Returns (name, warnings); unresolvable → ("", warnings).
+
+    Used for FQDN-based destinations, where there is no real IP to resolve
+    against and "whichever interface leads to the internet" is exactly
+    what the default route answers directly — asking for it explicitly
+    avoids the false-match risk of inferring it by longest-prefix-matching
+    an arbitrary sentinel IP against the routing table (a more specific
+    static route that happens to cover that one sentinel IP would win
+    instead of the true default route).
+    """
+    warnings: list[str] = []
+    for route in snapshot.routing_table:
+        if route.get("status", "enable") != "enable":
+            continue
+        net = _route_network(route)
+        if net is None or net.prefixlen != 0:
+            continue
+        raw_dev = route.get("device", "")
+        iface_name = (
+            raw_dev[0]
+            if isinstance(raw_dev, list) and raw_dev
+            else raw_dev
+            if isinstance(raw_dev, str)
+            else str(raw_dev)
+        )
+        if iface_name:
+            return iface_name, warnings
+    warnings.append(
+        f"No enabled default route (0.0.0.0/0) found on {snapshot.device} — "
+        f"{label.lower()} interface must be set manually"
+    )
+    return "", warnings
+
+
 def _resolve_one(
     snapshot: DeviceSnapshot,
     ip: str,

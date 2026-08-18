@@ -1,4 +1,5 @@
 """Tests for app.planner.fetch — device snapshot and zone verdict fetching."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +10,7 @@ from app.planner.fetch import (
     fetch_device_snapshot,
     fetch_zone_domains,
     fetch_zone_verdict,
+    resolve_default_route_interface,
     resolve_interfaces,
 )
 from app.planner.models import PlannerDataError
@@ -86,11 +88,18 @@ def test_fetch_device_snapshot_degrades_on_package_fetch_failure():
 
 def test_fetch_zone_verdict_returns_verdict_shape():
     zc = MagicMock(spec=ZoneDBAdapter)
-    zc.query.return_value = [{
-        "src": "10.0.0.5", "dst": "8.8.8.8", "service": "tcp/443",
-        "verdict": "ALLOWED", "src_zones": ["DMZ"], "dst_zones": ["Internet"],
-        "governing": [{"policy_set": "Corp"}], "all_policies": [],
-    }]
+    zc.query.return_value = [
+        {
+            "src": "10.0.0.5",
+            "dst": "8.8.8.8",
+            "service": "tcp/443",
+            "verdict": "ALLOWED",
+            "src_zones": ["DMZ"],
+            "dst_zones": ["Internet"],
+            "governing": [{"policy_set": "Corp"}],
+            "all_policies": [],
+        }
+    ]
     result = fetch_zone_verdict(zc, "10.0.0.5", "8.8.8.8", "tcp/443")
     assert result["verdict"] == "ALLOWED"
     assert result["src_zones"] == ["DMZ"]
@@ -100,14 +109,23 @@ def test_fetch_zone_verdict_returns_verdict_shape():
 
 def test_fetch_zone_verdict_applies_internet_default_when_unresolved():
     zc = MagicMock(spec=ZoneDBAdapter)
-    zc.query.return_value = [{
-        "src": "1.2.3.4", "dst": "10.0.0.5", "service": "tcp/443",
-        "verdict": "UNKNOWN", "src_zones": [], "dst_zones": ["DMZ"],
-        "governing": [], "all_policies": [],
-    }]
+    zc.query.return_value = [
+        {
+            "src": "1.2.3.4",
+            "dst": "10.0.0.5",
+            "service": "tcp/443",
+            "verdict": "UNKNOWN",
+            "src_zones": [],
+            "dst_zones": ["DMZ"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
     zc.zones.return_value = {"zones": [{"name": "Internet", "domain": "Default"}]}
-    with patch("app.zone_db.find_matching_policies", return_value=[]), \
-         patch("app.zone_db.evaluate", return_value=("ALLOWED", [])):
+    with (
+        patch("app.zone_db.find_matching_policies", return_value=[]),
+        patch("app.zone_db.evaluate", return_value=("ALLOWED", [])),
+    ):
         zc.policies.return_value = []
         result = fetch_zone_verdict(zc, "1.2.3.4", "10.0.0.5", "tcp/443")
     assert result["src_zones"] == ["Internet"]
@@ -116,18 +134,24 @@ def test_fetch_zone_verdict_applies_internet_default_when_unresolved():
 
 def test_fetch_zone_domains_maps_names_to_domains():
     zc = MagicMock(spec=ZoneDBAdapter)
-    zc.zones.return_value = {"zones": [
-        {"name": "DMZ", "domain": "Default"},
-        {"name": "OT-Plant1", "domain": "OT"},
-    ]}
+    zc.zones.return_value = {
+        "zones": [
+            {"name": "DMZ", "domain": "Default"},
+            {"name": "OT-Plant1", "domain": "OT"},
+        ]
+    }
     result = fetch_zone_domains(zc)
     assert result == {"DMZ": "Default", "OT-Plant1": "OT"}
 
 
 def test_resolve_interfaces_connected_subnet_match():
     snapshot = DeviceSnapshot(
-        device="FW-A", adom="OT-ADOM", packages=[], policies_by_package={},
-        addr_catalog=MagicMock(), svc_catalog=MagicMock(),
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
         interfaces=[{"name": "port1", "ip": "10.1.1.1 255.255.255.0"}],
         routing_table=[],
     )
@@ -139,10 +163,16 @@ def test_resolve_interfaces_connected_subnet_match():
 
 def test_resolve_interfaces_routing_table_fallback():
     snapshot = DeviceSnapshot(
-        device="FW-A", adom="OT-ADOM", packages=[], policies_by_package={},
-        addr_catalog=MagicMock(), svc_catalog=MagicMock(),
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
         interfaces=[{"name": "port1", "ip": "10.1.1.1 255.255.255.0"}],
-        routing_table=[{"dst": "0.0.0.0 0.0.0.0", "device": "port2", "status": "enable"}],
+        routing_table=[
+            {"dst": "0.0.0.0 0.0.0.0", "device": "port2", "status": "enable"}
+        ],
     )
     srcintf, dstintf, warnings = resolve_interfaces(snapshot, "10.1.1.50", "8.8.8.8")
     assert srcintf == "port1"
@@ -152,11 +182,88 @@ def test_resolve_interfaces_routing_table_fallback():
 
 def test_resolve_interfaces_unresolvable_warns():
     snapshot = DeviceSnapshot(
-        device="FW-A", adom="OT-ADOM", packages=[], policies_by_package={},
-        addr_catalog=MagicMock(), svc_catalog=MagicMock(),
-        interfaces=[], routing_table=[],
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[],
     )
     srcintf, dstintf, warnings = resolve_interfaces(snapshot, "10.1.1.50", "8.8.8.8")
     assert srcintf == ""
     assert dstintf == ""
     assert len(warnings) == 2
+
+
+def test_resolve_default_route_interface_finds_enabled_default_route():
+    snapshot = DeviceSnapshot(
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[
+            {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "enable"},
+        ],
+    )
+    name, warnings = resolve_default_route_interface(snapshot)
+    assert name == "wan1"
+    assert warnings == []
+
+
+def test_resolve_default_route_interface_ignores_disabled_route():
+    snapshot = DeviceSnapshot(
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[
+            {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "disable"},
+        ],
+    )
+    name, warnings = resolve_default_route_interface(snapshot)
+    assert name == ""
+    assert any("No enabled default route" in w for w in warnings)
+
+
+def test_resolve_default_route_interface_ignores_non_default_route():
+    """A specific static route (even one that happens to cover a sentinel
+    IP like 8.8.8.8) must never be mistaken for the default route."""
+    snapshot = DeviceSnapshot(
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[
+            {"dst": "8.8.8.8 255.255.255.255", "device": "wan2", "status": "enable"},
+        ],
+    )
+    name, warnings = resolve_default_route_interface(snapshot)
+    assert name == ""
+    assert any("No enabled default route" in w for w in warnings)
+
+
+def test_resolve_default_route_interface_no_routes():
+    snapshot = DeviceSnapshot(
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[],
+    )
+    name, warnings = resolve_default_route_interface(snapshot)
+    assert name == ""
+    assert len(warnings) == 1

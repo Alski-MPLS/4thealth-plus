@@ -30,7 +30,8 @@ from app.planner.fetch import (
     fetch_device_snapshot,
     fetch_zone_domains,
     fetch_zone_verdict,
-    resolve_interfaces,
+    resolve_default_route_interface,
+    resolve_interface,
 )
 from app.planner.insertion import _intf_scoped, plan_insertion
 from app.planner.matching import (
@@ -497,8 +498,6 @@ def _resolve_side_interface(
 ) -> str:
     """One interface for a whole side. All members must resolve to the same
     interface; a conflict yields "" plus a warning — never a silent pick."""
-    from app.planner.fetch import resolve_interface
-
     resolved: dict[str, str] = {}
     for m in members:
         name, w = resolve_interface(snapshot, m, zones, label)
@@ -1257,11 +1256,23 @@ def _plan_fqdn_firewall(
     if fw.verdict != "blocked_exception":
         fw.verdict = fw.coverage  # "new_rule" or "partial_coverage"
 
-    # Resolve interfaces (src IP is an IP; use internet sentinel for dst)
-    srcintf, dstintf, iface_warnings = resolve_interfaces(
-        snapshot, request.src_ip, _INTERNET_SENTINEL
+    # Resolve interfaces: src is a real IP (unless it's "any"/"all"/a named
+    # object, which has no interface to resolve — skip rather than feed a
+    # non-IP string into IP parsing); dst is the FQDN's egress interface,
+    # resolved directly from the device's default route rather than by
+    # longest-prefix-matching an internet sentinel IP (see
+    # resolve_default_route_interface's docstring for why).
+    if _is_valid_ip(request.src_ip):
+        srcintf, src_iface_warnings = resolve_interface(
+            snapshot, request.src_ip, [], "Source"
+        )
+        fw.warnings.extend(src_iface_warnings)
+    else:
+        srcintf = ""
+    dstintf, dst_iface_warnings = resolve_default_route_interface(
+        snapshot, "Destination"
     )
-    fw.warnings.extend(iface_warnings)
+    fw.warnings.extend(dst_iface_warnings)
 
     # Build proposed FQDN address objects
     obj_warnings: list[str] = []
