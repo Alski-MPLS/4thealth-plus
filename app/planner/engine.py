@@ -1425,6 +1425,48 @@ def _plan_fqdn_firewall(
     policy_name_str = standards.policy_name(
         request.ticket_id, srcintf or "any", dstintf or "any"
     )
+
+    # Target package: the package actually installed on this device per
+    # FortiManager's device database (same call the Firewalls tab uses to
+    # show "installed packages"), NOT just whichever package happened to be
+    # first in the ADOM's package list — a device with more than one
+    # scoped package (e.g. per-VDOM assignments) must not silently default
+    # to an arbitrary one.
+    try:
+        installed_pkgs = fmg_client.get_device_policy_package(
+            target.adom, target.device
+        )
+    except Exception:
+        installed_pkgs = []
+    if len(installed_pkgs) == 1:
+        target_package = installed_pkgs[0].get("name", "")
+    elif len(installed_pkgs) > 1:
+        root_pkg = next(
+            (p for p in installed_pkgs if str(p.get("vdom", "")).lower() == "root"),
+            None,
+        )
+        target_package = (root_pkg or installed_pkgs[0]).get("name", "")
+        fw.warnings.append(
+            f"{target.device} has {len(installed_pkgs)} policy packages installed "
+            "across VDOMs ("
+            + ", ".join(
+                f"{p.get('name', '?')}:{p.get('vdom', '?')}" for p in installed_pkgs
+            )
+            + f") — defaulted to {target_package!r}; verify this is the correct "
+            "package for the target VDOM before applying."
+        )
+    else:
+        # FortiManager reported no installed package for this device — fall
+        # back to the first ADOM-scoped package, same as before, but say so.
+        target_package = snapshot.packages[0] if snapshot.packages else ""
+        if snapshot.packages:
+            fw.warnings.append(
+                f"Could not determine the policy package actually installed on "
+                f"{target.device} — defaulted to {target_package!r} (the first "
+                "ADOM-scoped package found); verify this is correct before "
+                "applying."
+            )
+
     pol_cli = cli_gen.policy_cli(
         name=policy_name_str,
         srcintf=srcintf or "any",
@@ -1439,7 +1481,7 @@ def _plan_fqdn_firewall(
     )
     fw.proposed_policy = {
         "name": policy_name_str,
-        "package": snapshot.packages[0] if snapshot.packages else "",
+        "package": target_package,
         "srcintf": srcintf or "any",
         "dstintf": dstintf or "any",
         "srcaddr": [src_obj.name],
