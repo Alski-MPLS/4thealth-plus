@@ -1,4 +1,5 @@
 """Tests for app.planner.engine.plan_change — the deterministic core."""
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -27,16 +28,24 @@ def _use_example_standards_files(monkeypatch):
 
 def _zone_client(verdict="ALLOWED", src_zones=("DMZ",), dst_zones=("Internet",)):
     zc = MagicMock(spec=ZoneDBAdapter)
-    zc.query.return_value = [{
-        "src": "x", "dst": "y", "service": "z", "verdict": verdict,
-        "src_zones": list(src_zones), "dst_zones": list(dst_zones),
-        "governing": [{"policy_set": "Corp", "access_type": "allow all"}],
-        "all_policies": [],
-    }]
-    zc.zones.return_value = {"zones": [
-        {"name": "DMZ", "domain": "Default"},
-        {"name": "Internet", "domain": "Default"},
-    ]}
+    zc.query.return_value = [
+        {
+            "src": "x",
+            "dst": "y",
+            "service": "z",
+            "verdict": verdict,
+            "src_zones": list(src_zones),
+            "dst_zones": list(dst_zones),
+            "governing": [{"policy_set": "Corp", "access_type": "allow all"}],
+            "all_policies": [],
+        }
+    ]
+    zc.zones.return_value = {
+        "zones": [
+            {"name": "DMZ", "domain": "Default"},
+            {"name": "Internet", "domain": "Default"},
+        ]
+    }
     zc.policies.return_value = []
     return zc
 
@@ -51,9 +60,12 @@ def test_plan_change_unknown_verdict_skips_firewall_analysis():
     zc = _zone_client(verdict="UNKNOWN", src_zones=(), dst_zones=())
     zc.zones.return_value = {"zones": []}  # no Internet zone → stays UNKNOWN
     plan = plan_change(
-        src="1.2.3.4", dst="5.6.7.8", service="tcp/443",
+        src="1.2.3.4",
+        dst="5.6.7.8",
+        service="tcp/443",
         firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=MagicMock(),
+        zone_client=zc,
+        fmg_client=MagicMock(),
     )
     assert plan.cli_status == "unknown_no_action"
     assert plan.firewalls[0].status == "no_action"
@@ -64,21 +76,35 @@ def test_plan_change_mixed_verdicts_raises():
 
     def query_side_effect(src, dst, service, verbose=True):
         verdict = "ALLOWED" if dst == "5.6.7.8" else "BLOCKED"
-        return [{
-            "src": src, "dst": dst, "service": service, "verdict": verdict,
-            "src_zones": ["DMZ"], "dst_zones": ["Internet"],
-            "governing": [{"policy_set": "Corp", "access_type": "block all"}],
-            "all_policies": [],
-        }]
+        return [
+            {
+                "src": src,
+                "dst": dst,
+                "service": service,
+                "verdict": verdict,
+                "src_zones": ["DMZ"],
+                "dst_zones": ["Internet"],
+                "governing": [{"policy_set": "Corp", "access_type": "block all"}],
+                "all_policies": [],
+            }
+        ]
+
     zc.query.side_effect = query_side_effect
-    zc.zones.return_value = {"zones": [{"name": "DMZ", "domain": "Default"},
-                                        {"name": "Internet", "domain": "Default"}]}
+    zc.zones.return_value = {
+        "zones": [
+            {"name": "DMZ", "domain": "Default"},
+            {"name": "Internet", "domain": "Default"},
+        ]
+    }
 
     with pytest.raises(PlannerDataError) as exc_info:
         plan_change(
-            src="1.2.3.4", dst="5.6.7.8, 9.9.9.9", service="tcp/443",
+            src="1.2.3.4",
+            dst="5.6.7.8, 9.9.9.9",
+            service="tcp/443",
             firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-            zone_client=zc, fmg_client=MagicMock(),
+            zone_client=zc,
+            fmg_client=MagicMock(),
         )
     assert exc_info.value.source == "request"
 
@@ -87,12 +113,17 @@ def test_plan_change_device_not_found_reports_error_status():
     zc = _zone_client()
     client = _fmg_client_with_no_devices()
     plan = plan_change(
-        src="1.2.3.4", dst="5.6.7.8", service="tcp/443",
+        src="1.2.3.4",
+        dst="5.6.7.8",
+        service="tcp/443",
         firewalls=[TargetFirewall(device="FW-MISSING", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=client,
+        zone_client=zc,
+        fmg_client=client,
     )
     assert plan.firewalls[0].status == "not_found"
-    assert plan.cli_status == "new_rule"  # not "already_covered" — device errored, not covered
+    assert (
+        plan.cli_status == "new_rule"
+    )  # not "already_covered" — device errored, not covered
 
 
 def test_plan_change_already_covered_all_firewalls():
@@ -104,17 +135,31 @@ def test_plan_change_already_covered_all_firewalls():
     client.get_address_groups.return_value = []
     client.get_service_objects.return_value = []
     client.get_service_groups.return_value = []
-    client.get_device_interfaces.return_value = [{"name": "port1", "ip": "10.0.0.1 255.255.255.0"}]
+    client.get_device_interfaces.return_value = [
+        {"name": "port1", "ip": "10.0.0.1 255.255.255.0"}
+    ]
     client.get_device_routes.return_value = []
-    client.get_policies.return_value = [{
-        "policyid": 5, "name": "EXISTING", "status": "enable", "action": 1,
-        "srcaddr": ["all"], "dstaddr": ["all"], "service": ["ALL"],
-        "srcintf": ["any"], "dstintf": ["any"], "schedule": ["always"],
-    }]
+    client.get_policies.return_value = [
+        {
+            "policyid": 5,
+            "name": "EXISTING",
+            "status": "enable",
+            "action": 1,
+            "srcaddr": ["all"],
+            "dstaddr": ["all"],
+            "service": ["ALL"],
+            "srcintf": ["any"],
+            "dstintf": ["any"],
+            "schedule": ["always"],
+        }
+    ]
     plan = plan_change(
-        src="10.0.0.5", dst="10.0.0.6", service="tcp/443",
+        src="10.0.0.5",
+        dst="10.0.0.6",
+        service="tcp/443",
         firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=client,
+        zone_client=zc,
+        fmg_client=client,
     )
     assert plan.firewalls[0].status == "already_covered"
     assert plan.cli_status == "already_covered"
@@ -137,9 +182,13 @@ def test_plan_change_new_rule_generates_cli_and_naming():
     client.get_policies.return_value = []  # no existing rules
 
     plan = plan_change(
-        src="10.0.0.5", dst="192.168.1.50", service="tcp/8443",
-        ticket_id="CHG0001", firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=client,
+        src="10.0.0.5",
+        dst="192.168.1.50",
+        service="tcp/8443",
+        ticket_id="CHG0001",
+        firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
+        zone_client=zc,
+        fmg_client=client,
     )
     fw = plan.firewalls[0]
     assert fw.status == "new_rule"
@@ -165,9 +214,14 @@ def test_group_blast_radius_uses_package_path_not_name():
     addr_catalog = MagicMock()
     addr_catalog.groups_containing.return_value = set()
     snapshot = DeviceSnapshot(
-        device="FW-A", adom="OT-ADOM", packages=[], policies_by_package={},
-        addr_catalog=addr_catalog, svc_catalog=MagicMock(),
-        interfaces=[], routing_table=[],
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=addr_catalog,
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[],
     )
 
     _group_blast_radius(client, snapshot, "SOME_GROUP", exclude=("other", 1))
@@ -197,9 +251,13 @@ def test_plan_change_blocked_verdict_generates_exception_cli():
     client.get_policies.return_value = []  # no existing rules
 
     plan = plan_change(
-        src="10.0.0.5", dst="192.168.1.50", service="tcp/8443",
-        ticket_id="CHG0001", firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=client,
+        src="10.0.0.5",
+        dst="192.168.1.50",
+        service="tcp/8443",
+        ticket_id="CHG0001",
+        firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
+        zone_client=zc,
+        fmg_client=client,
     )
     fw = plan.firewalls[0]
     assert plan.cli_status == "blocked_exception"
@@ -208,6 +266,7 @@ def test_plan_change_blocked_verdict_generates_exception_cli():
 
 def test_to_report_payload_has_expected_top_level_keys():
     from app.planner.engine import to_report_payload
+
     zc = _zone_client()
     client = MagicMock()
     client.get_devices.return_value = [{"name": "FW-A"}]
@@ -220,21 +279,33 @@ def test_to_report_payload_has_expected_top_level_keys():
     client.get_device_routes.return_value = []
 
     plan = plan_change(
-        src="10.0.0.5", dst="192.168.1.50", service="tcp/8443",
+        src="10.0.0.5",
+        dst="192.168.1.50",
+        service="tcp/8443",
         firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
-        zone_client=zc, fmg_client=client,
+        zone_client=zc,
+        fmg_client=client,
     )
     payload = to_report_payload(plan)
     assert set(payload.keys()) == {
-        "ticket_id", "request", "zone_verdict", "existing_rules",
-        "naming", "logging", "approval", "recommendation", "cli",
+        "ticket_id",
+        "request",
+        "zone_verdict",
+        "existing_rules",
+        "naming",
+        "logging",
+        "approval",
+        "recommendation",
+        "cli",
     }
 
 
 def test_plan_change_rejects_non_ip_src():
     with pytest.raises(PlannerDataError, match="plan_fqdn_change"):
         plan_change(
-            src="not-an-ip.example.com", dst="10.0.0.6", service="tcp/443",
+            src="not-an-ip.example.com",
+            dst="10.0.0.6",
+            service="tcp/443",
             firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
         )
 
@@ -242,16 +313,23 @@ def test_plan_change_rejects_non_ip_src():
 def test_plan_change_rejects_non_ip_dst():
     with pytest.raises(PlannerDataError, match="plan_fqdn_change"):
         plan_change(
-            src="10.0.0.5", dst="*.vendor.com", service="tcp/443",
+            src="10.0.0.5",
+            dst="*.vendor.com",
+            service="tcp/443",
             firewalls=[TargetFirewall(device="FW-A", adom="OT-ADOM")],
         )
 
 
 def _fqdn_entry(fqdn="new.vendor.com", ports=(443,), protocol="TCP"):
     from app.planner.models import FQDNEntry
+
     return FQDNEntry(
-        fqdn=fqdn, is_wildcard=fqdn.startswith("*."), ports=list(ports),
-        protocol=protocol, required=True, comment="",
+        fqdn=fqdn,
+        is_wildcard=fqdn.startswith("*."),
+        ports=list(ports),
+        protocol=protocol,
+        required=True,
+        comment="",
     )
 
 
@@ -260,8 +338,11 @@ def test_plan_fqdn_change_proposes_objects_for_uncovered_entries():
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="Vendor Co", category="API", src_ip="10.0.0.5",
-        ticket_id="CHG1", firewalls=["FW-A:OT-ADOM"],
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
         entries=[_fqdn_entry()],
     )
 
@@ -277,10 +358,15 @@ def test_plan_fqdn_change_proposes_objects_for_uncovered_entries():
     fake_fmg.get_device_routes.return_value = []
 
     fake_zc = MagicMock()
-    fake_zc.query.return_value = [{
-        "verdict": "ALLOWED", "src_zones": ["OT-LAN"], "dst_zones": ["Internet"],
-        "governing": [], "all_policies": [],
-    }]
+    fake_zc.query.return_value = [
+        {
+            "verdict": "ALLOWED",
+            "src_zones": ["OT-LAN"],
+            "dst_zones": ["Internet"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
     fake_zc.zones.return_value = {"zones": [], "total_subnets": 0}
 
     plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
@@ -296,13 +382,110 @@ def test_plan_fqdn_change_proposes_objects_for_uncovered_entries():
     assert "SVC_TCP_443" in fw.proposed_policy["service"]
 
 
+def test_plan_fqdn_change_resolves_dstintf_via_default_route():
+    """dstintf is resolved directly from the device's default route
+    (0.0.0.0/0), not by overlap-matching an internet-sentinel IP."""
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+
+    fake_fmg = MagicMock()
+    fake_fmg.get_devices.return_value = [{"name": "FW-A"}]
+    fake_fmg.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    fake_fmg.get_policies.return_value = []
+    fake_fmg.get_address_objects.return_value = []
+    fake_fmg.get_address_groups.return_value = []
+    fake_fmg.get_service_objects.return_value = []
+    fake_fmg.get_service_groups.return_value = []
+    fake_fmg.get_device_interfaces.return_value = [
+        {"name": "port1", "ip": "10.0.0.1 255.255.255.0"}
+    ]
+    fake_fmg.get_device_routes.return_value = [
+        {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "enable"},
+    ]
+
+    fake_zc = MagicMock()
+    fake_zc.query.return_value = [
+        {
+            "verdict": "ALLOWED",
+            "src_zones": ["OT-LAN"],
+            "dst_zones": ["Internet"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
+    fake_zc.zones.return_value = {"zones": [], "total_subnets": 0}
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+
+    fw = plan.per_firewall[0]
+    assert fw.proposed_policy["dstintf"] == "wan1"
+    assert fw.proposed_policy["srcintf"] == "port1"
+    assert not any("8.8.8.8" in w for w in fw.warnings)
+
+
+def test_plan_fqdn_change_no_default_route_warns_and_falls_back_to_any():
+    from app.planner.engine import plan_fqdn_change
+    from app.planner.models import FQDNAllowlistRequest
+
+    req = FQDNAllowlistRequest(
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
+    )
+
+    fake_fmg = MagicMock()
+    fake_fmg.get_devices.return_value = [{"name": "FW-A"}]
+    fake_fmg.get_policy_packages.return_value = [{"name": "pkg1", "path": "pkg1"}]
+    fake_fmg.get_policies.return_value = []
+    fake_fmg.get_address_objects.return_value = []
+    fake_fmg.get_address_groups.return_value = []
+    fake_fmg.get_service_objects.return_value = []
+    fake_fmg.get_service_groups.return_value = []
+    fake_fmg.get_device_interfaces.return_value = []
+    fake_fmg.get_device_routes.return_value = []  # no default route synced
+
+    fake_zc = MagicMock()
+    fake_zc.query.return_value = [
+        {
+            "verdict": "ALLOWED",
+            "src_zones": ["OT-LAN"],
+            "dst_zones": ["Internet"],
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
+    fake_zc.zones.return_value = {"zones": [], "total_subnets": 0}
+
+    plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=fake_zc)
+
+    fw = plan.per_firewall[0]
+    assert fw.proposed_policy["dstintf"] == "any"
+    assert any("No enabled default route" in w for w in fw.warnings)
+
+
 def test_plan_fqdn_change_invalid_firewall_spec_yields_error_plan():
     from app.planner.engine import plan_fqdn_change
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="any", ticket_id="CHG1",
-        firewalls=["not-a-valid-spec"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="any",
+        ticket_id="CHG1",
+        firewalls=["not-a-valid-spec"],
+        entries=[_fqdn_entry()],
     )
     plan = plan_fqdn_change(req, fmg_client=MagicMock(), zone_client=MagicMock())
     assert plan.per_firewall[0].verdict == "error"
@@ -311,17 +494,34 @@ def test_plan_fqdn_change_invalid_firewall_spec_yields_error_plan():
 
 def test_to_fqdn_report_payload_shape():
     from app.planner.engine import to_fqdn_report_payload
-    from app.planner.models import FQDNChangePlan, FQDNFirewallPlan, FQDNAllowlistRequest
+    from app.planner.models import (
+        FQDNChangePlan,
+        FQDNFirewallPlan,
+        FQDNAllowlistRequest,
+    )
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
     fw_plan = FQDNFirewallPlan(
-        firewall="FW-A", adom="OT-ADOM", verdict="new_rule", src_zone="OT-LAN",
-        coverage="new_rule", covered_entries=[], uncovered_entries=[_fqdn_entry()],
-        proposed_objects=[], proposed_group=None, proposed_policy=None,
-        group_append_alternative=None, degraded=False, warnings=["w1"],
+        firewall="FW-A",
+        adom="OT-ADOM",
+        verdict="new_rule",
+        src_zone="OT-LAN",
+        coverage="new_rule",
+        covered_entries=[],
+        uncovered_entries=[_fqdn_entry()],
+        proposed_objects=[],
+        proposed_group=None,
+        proposed_policy=None,
+        group_append_alternative=None,
+        degraded=False,
+        warnings=["w1"],
     )
     plan = FQDNChangePlan(request=req, per_firewall=[fw_plan])
 
@@ -337,12 +537,19 @@ def test_to_fqdn_report_payload_shape():
 # ---------------------------------------------------------------------------
 
 
-def _fqdn_zone_client(verdict="ALLOWED", src_zones=("OT-LAN",), dst_zones=("Internet",)):
+def _fqdn_zone_client(
+    verdict="ALLOWED", src_zones=("OT-LAN",), dst_zones=("Internet",)
+):
     zc = MagicMock()
-    zc.query.return_value = [{
-        "verdict": verdict, "src_zones": list(src_zones), "dst_zones": list(dst_zones),
-        "governing": [], "all_policies": [],
-    }]
+    zc.query.return_value = [
+        {
+            "verdict": verdict,
+            "src_zones": list(src_zones),
+            "dst_zones": list(dst_zones),
+            "governing": [],
+            "all_policies": [],
+        }
+    ]
     zc.zones.return_value = {"zones": [], "total_subnets": 0}
     return zc
 
@@ -371,8 +578,12 @@ def test_plan_fqdn_change_malformed_spec_in_zone_error_path_yields_error_not_unk
     from app.planner.models import FQDNAllowlistRequest, PlannerDataError
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["not-a-valid-spec", "FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["not-a-valid-spec", "FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
 
     fake_zc = MagicMock()
@@ -400,8 +611,12 @@ def test_plan_fqdn_change_truncates_long_object_name():
 
     long_fqdn = "a" * 90 + ".example.com"
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=long_fqdn)],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=long_fqdn)],
     )
     fake_fmg = _fqdn_fmg_base()
     fake_zc = _fqdn_zone_client()
@@ -428,7 +643,10 @@ def test_plan_fqdn_change_disambiguates_colliding_truncated_names():
     assert ("FQDN-" + fqdn1)[:76] == ("FQDN-" + fqdn2)[:76]
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
         firewalls=["FW-A:OT-ADOM"],
         entries=[_fqdn_entry(fqdn=fqdn1), _fqdn_entry(fqdn=fqdn2)],
     )
@@ -449,8 +667,12 @@ def test_plan_fqdn_change_unknown_verdict_skips_analysis():
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
     fake_fmg = _fqdn_fmg_base()
     fake_zc = _fqdn_zone_client(verdict="UNKNOWN")
@@ -470,8 +692,12 @@ def test_plan_fqdn_change_blocked_verdict_survives_new_rule_analysis():
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
     fake_fmg = _fqdn_fmg_base()
     fake_zc = _fqdn_zone_client(verdict="BLOCKED")
@@ -491,7 +717,10 @@ def test_plan_fqdn_change_partial_coverage_yields_group_append_alternative():
     covered_fqdn = "covered.vendor.com"
     uncovered_fqdn = "new.vendor.com"
     req = FQDNAllowlistRequest(
-        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
         firewalls=["FW-A:OT-ADOM"],
         entries=[_fqdn_entry(fqdn=covered_fqdn), _fqdn_entry(fqdn=uncovered_fqdn)],
     )
@@ -502,12 +731,21 @@ def test_plan_fqdn_change_partial_coverage_yields_group_append_alternative():
     address_groups = [
         {"name": "GRP-Vendor-Co-API-DST", "member": ["FQDN-covered.vendor.com"]},
     ]
-    policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
-        "dstaddr": ["GRP-Vendor-Co-API-DST"], "srcaddr": [], "service": [],
-    }]
+    policies = [
+        {
+            "policyid": 1,
+            "name": "pol1",
+            "status": "enable",
+            "action": 1,
+            "dstaddr": ["GRP-Vendor-Co-API-DST"],
+            "srcaddr": [],
+            "service": [],
+        }
+    ]
     fake_fmg = _fqdn_fmg_base(
-        address_objects=address_objects, address_groups=address_groups, policies=policies,
+        address_objects=address_objects,
+        address_groups=address_groups,
+        policies=policies,
     )
     fake_zc = _fqdn_zone_client()
 
@@ -527,14 +765,27 @@ def test_plan_fqdn_change_already_covered_when_all_entries_covered():
 
     fqdn = "covered.vendor.com"
     req = FQDNAllowlistRequest(
-        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=fqdn)],
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=fqdn)],
     )
-    address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
-    policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
-        "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
-    }]
+    address_objects = [
+        {"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}
+    ]
+    policies = [
+        {
+            "policyid": 1,
+            "name": "pol1",
+            "status": "enable",
+            "action": 1,
+            "dstaddr": ["FQDN-covered.vendor.com"],
+            "srcaddr": [],
+            "service": [],
+        }
+    ]
     fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
     fake_zc = _fqdn_zone_client()
 
@@ -556,14 +807,27 @@ def test_plan_fqdn_change_blocked_verdict_not_downgraded_by_full_coverage():
 
     fqdn = "covered.vendor.com"
     req = FQDNAllowlistRequest(
-        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry(fqdn=fqdn)],
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry(fqdn=fqdn)],
     )
-    address_objects = [{"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}]
-    policies = [{
-        "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
-        "dstaddr": ["FQDN-covered.vendor.com"], "srcaddr": [], "service": [],
-    }]
+    address_objects = [
+        {"name": "FQDN-covered.vendor.com", "type": "fqdn", "fqdn": fqdn}
+    ]
+    policies = [
+        {
+            "policyid": 1,
+            "name": "pol1",
+            "status": "enable",
+            "action": 1,
+            "dstaddr": ["FQDN-covered.vendor.com"],
+            "srcaddr": [],
+            "service": [],
+        }
+    ]
     fake_fmg = _fqdn_fmg_base(address_objects=address_objects, policies=policies)
     fake_zc = _fqdn_zone_client(verdict="BLOCKED")
 
@@ -610,7 +874,8 @@ def test_fqdn_object_name_preserves_legitimate_values():
 
     assert _fqdn_object_name("api.vendor.com") == ("fqdn", "FQDN-api.vendor.com")
     assert _fqdn_object_name("*.push.apple.com") == (
-        "wildcard-fqdn", "WFQDN-push.apple.com",
+        "wildcard-fqdn",
+        "WFQDN-push.apple.com",
     )
 
 
@@ -637,7 +902,10 @@ def test_plan_fqdn_change_generated_cli_has_no_injected_statements():
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor=_MALICIOUS, category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        vendor=_MALICIOUS,
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
         firewalls=["FW-A:OT-ADOM"],
         entries=[_fqdn_entry(fqdn='bad"\nend\nconfig system admin\n    edit "x')],
     )
@@ -659,14 +927,19 @@ def test_plan_fqdn_change_generated_cli_has_no_injected_statements():
 
 # ── Finding 4b: 'all' source must be warned about ──────────────────────────
 
+
 @pytest.mark.parametrize("src_ip", ["", "any", "all", "ANY", "  All  "])
 def test_plan_fqdn_change_warns_when_source_is_builtin_all(src_ip):
     from app.planner.engine import plan_fqdn_change
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip=src_ip, ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip=src_ip,
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
     plan = plan_fqdn_change(
         req, fmg_client=_fqdn_fmg_base(), zone_client=_fqdn_zone_client()
@@ -674,9 +947,7 @@ def test_plan_fqdn_change_warns_when_source_is_builtin_all(src_ip):
     fw = plan.per_firewall[0]
 
     assert fw.proposed_policy["srcaddr"] == ["all"]
-    assert any(
-        "permit traffic from ANY source" in w for w in fw.warnings
-    ), fw.warnings
+    assert any("permit traffic from ANY source" in w for w in fw.warnings), fw.warnings
 
 
 def test_plan_fqdn_change_no_all_source_warning_for_specific_ip():
@@ -684,8 +955,12 @@ def test_plan_fqdn_change_no_all_source_warning_for_specific_ip():
     from app.planner.models import FQDNAllowlistRequest
 
     req = FQDNAllowlistRequest(
-        vendor="V", category="C", src_ip="10.0.0.5", ticket_id="CHG1",
-        firewalls=["FW-A:OT-ADOM"], entries=[_fqdn_entry()],
+        vendor="V",
+        category="C",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
+        firewalls=["FW-A:OT-ADOM"],
+        entries=[_fqdn_entry()],
     )
     plan = plan_fqdn_change(
         req, fmg_client=_fqdn_fmg_base(), zone_client=_fqdn_zone_client()
@@ -697,6 +972,7 @@ def test_plan_fqdn_change_no_all_source_warning_for_specific_ip():
 
 # ── Finding 8: group-append alternative carries no blast radius ────────────
 
+
 def test_fqdn_group_append_alternative_warns_blast_radius_not_computed():
     from app.planner.engine import plan_fqdn_change
     from app.planner.models import FQDNAllowlistRequest
@@ -704,7 +980,10 @@ def test_fqdn_group_append_alternative_warns_blast_radius_not_computed():
     covered_fqdn = "covered.vendor.com"
     uncovered_fqdn = "new.vendor.com"
     req = FQDNAllowlistRequest(
-        vendor="Vendor Co", category="API", src_ip="10.0.0.5", ticket_id="CHG1",
+        vendor="Vendor Co",
+        category="API",
+        src_ip="10.0.0.5",
+        ticket_id="CHG1",
         firewalls=["FW-A:OT-ADOM"],
         entries=[_fqdn_entry(fqdn=covered_fqdn), _fqdn_entry(fqdn=uncovered_fqdn)],
     )
@@ -715,10 +994,17 @@ def test_fqdn_group_append_alternative_warns_blast_radius_not_computed():
         address_groups=[
             {"name": "GRP-Vendor-Co-API-DST", "member": ["FQDN-covered.vendor.com"]},
         ],
-        policies=[{
-            "policyid": 1, "name": "pol1", "status": "enable", "action": 1,
-            "dstaddr": ["GRP-Vendor-Co-API-DST"], "srcaddr": [], "service": [],
-        }],
+        policies=[
+            {
+                "policyid": 1,
+                "name": "pol1",
+                "status": "enable",
+                "action": 1,
+                "dstaddr": ["GRP-Vendor-Co-API-DST"],
+                "srcaddr": [],
+                "service": [],
+            }
+        ],
     )
 
     plan = plan_fqdn_change(req, fmg_client=fake_fmg, zone_client=_fqdn_zone_client())
