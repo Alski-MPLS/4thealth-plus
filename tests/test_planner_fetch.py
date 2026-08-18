@@ -30,7 +30,7 @@ def _client_stub(**overrides):
         {"name": "port1", "ip": "10.1.1.1 255.255.255.0"},
     ]
     client.get_device_routes.return_value = [
-        {"dst": "0.0.0.0 0.0.0.0", "device": "port2", "status": "enable"},
+        {"ip_mask": "0.0.0.0/0", "interface": "port2", "status": "enable"},
     ]
     for k, v in overrides.items():
         getattr(client, k).return_value = v
@@ -171,7 +171,7 @@ def test_resolve_interfaces_routing_table_fallback():
         svc_catalog=MagicMock(),
         interfaces=[{"name": "port1", "ip": "10.1.1.1 255.255.255.0"}],
         routing_table=[
-            {"dst": "0.0.0.0 0.0.0.0", "device": "port2", "status": "enable"}
+            {"ip_mask": "0.0.0.0/0", "interface": "port2", "status": "enable"}
         ],
     )
     srcintf, dstintf, warnings = resolve_interfaces(snapshot, "10.1.1.50", "8.8.8.8")
@@ -207,7 +207,7 @@ def test_resolve_default_route_interface_finds_enabled_default_route():
         svc_catalog=MagicMock(),
         interfaces=[],
         routing_table=[
-            {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "enable"},
+            {"ip_mask": "0.0.0.0/0", "interface": "wan1", "status": "enable"},
         ],
     )
     name, warnings = resolve_default_route_interface(snapshot)
@@ -225,7 +225,7 @@ def test_resolve_default_route_interface_ignores_disabled_route():
         svc_catalog=MagicMock(),
         interfaces=[],
         routing_table=[
-            {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "disable"},
+            {"ip_mask": "0.0.0.0/0", "interface": "wan1", "status": "disable"},
         ],
     )
     name, warnings = resolve_default_route_interface(snapshot)
@@ -245,12 +245,32 @@ def test_resolve_default_route_interface_ignores_non_default_route():
         svc_catalog=MagicMock(),
         interfaces=[],
         routing_table=[
-            {"dst": "8.8.8.8 255.255.255.255", "device": "wan2", "status": "enable"},
+            {"ip_mask": "8.8.8.8/32", "interface": "wan2", "status": "enable"},
         ],
     )
     name, warnings = resolve_default_route_interface(snapshot)
     assert name == ""
     assert any("No enabled default route" in w for w in warnings)
+
+
+def test_resolve_default_route_interface_accepts_alias_field_names():
+    """network/prefix and dev/ifname are accepted as aliases for
+    ip_mask/interface, matching app.rule_review's own route parsing."""
+    snapshot = DeviceSnapshot(
+        device="FW-A",
+        adom="OT-ADOM",
+        packages=[],
+        policies_by_package={},
+        addr_catalog=MagicMock(),
+        svc_catalog=MagicMock(),
+        interfaces=[],
+        routing_table=[
+            {"network": "0.0.0.0/0", "dev": "wan1", "status": "enable"},
+        ],
+    )
+    name, warnings = resolve_default_route_interface(snapshot)
+    assert name == "wan1"
+    assert warnings == []
 
 
 def test_resolve_default_route_interface_no_routes():

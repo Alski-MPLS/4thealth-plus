@@ -225,11 +225,20 @@ def fetch_zone_domains(zc: ZoneDBAdapter) -> dict[str, str]:
 
 
 def _route_network(route: dict):
-    """Parse the dst field of a static route into an ip_network.
+    """Parse a route dict's destination into an ip_network.
+
+    Route dicts come from FMGClient.get_device_routes()'s live routing
+    table (FortiOS's /api/v2/monitor/router/ipv4), which reports the
+    destination as "ip_mask" — already a single CIDR string like
+    "0.0.0.0/0" — not the "dst" field used by the separate static-route
+    *config* schema. "network"/"prefix" are accepted as aliases, matching
+    app.rule_review's own route parsing (see best_route() there) — the
+    two engines must agree on what a route dict looks like, since they
+    read the same FMGClient.get_device_routes() data.
 
     Unlike _iface_network, 0.0.0.0/0 (the default route) is valid here.
     """
-    raw = route.get("dst", "")
+    raw = route.get("ip_mask", route.get("network", route.get("prefix", "")))
     if isinstance(raw, list) and len(raw) == 2:
         raw = f"{raw[0]}/{raw[1]}"
     elif isinstance(raw, str) and " " in raw:
@@ -241,6 +250,21 @@ def _route_network(route: dict):
         return ipaddress.ip_network(str(raw), strict=False)
     except ValueError:
         return None
+
+
+def _route_interface(route: dict) -> str:
+    """Extract the egress interface name from a route dict.
+
+    Same live-monitor schema as _route_network(): the field is
+    "interface" (aliases "dev"/"ifname"), not the "device" field used by
+    the static-route config schema.
+    """
+    raw = route.get("interface", route.get("dev", route.get("ifname", "")))
+    if isinstance(raw, list) and raw:
+        return str(raw[0])
+    if isinstance(raw, str):
+        return raw
+    return str(raw) if raw else ""
 
 
 def _iface_network(iface: dict):
@@ -312,14 +336,7 @@ def resolve_default_route_interface(
         net = _route_network(route)
         if net is None or net.prefixlen != 0:
             continue
-        raw_dev = route.get("device", "")
-        iface_name = (
-            raw_dev[0]
-            if isinstance(raw_dev, list) and raw_dev
-            else raw_dev
-            if isinstance(raw_dev, str)
-            else str(raw_dev)
-        )
+        iface_name = _route_interface(route)
         if iface_name:
             return iface_name, warnings
     warnings.append(
@@ -356,14 +373,7 @@ def _resolve_one(
         if route.get("status", "enable") != "enable":
             continue
         net = _route_network(route)
-        raw_dev = route.get("device", "")
-        iface_name = (
-            raw_dev[0]
-            if isinstance(raw_dev, list) and raw_dev
-            else raw_dev
-            if isinstance(raw_dev, str)
-            else str(raw_dev)
-        )
+        iface_name = _route_interface(route)
         if (
             net is not None
             and iface_name
