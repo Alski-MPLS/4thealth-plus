@@ -409,7 +409,7 @@ def test_plan_fqdn_change_resolves_dstintf_via_default_route():
         {"name": "port1", "ip": "10.0.0.1 255.255.255.0"}
     ]
     fake_fmg.get_device_routes.return_value = [
-        {"dst": "0.0.0.0 0.0.0.0", "device": "wan1", "status": "enable"},
+        {"ip_mask": "0.0.0.0/0", "interface": "wan1", "status": "enable"},
     ]
 
     fake_zc = MagicMock()
