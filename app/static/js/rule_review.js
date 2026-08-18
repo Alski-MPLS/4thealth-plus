@@ -1099,22 +1099,41 @@ function renderFqdnAiResult(data) {
   const perFwEl = document.getElementById('rrAiFqdnPerFirewall');
   perFwEl.innerHTML = (plan.per_firewall || []).map(fw => {
     const pol = fw.proposed_policy || {};
-    // Order: every new address/service object first (the policy references
-    // them by name, so they must exist before it is created), then the
-    // destination group, then the policy itself.
-    const cliBlock = [
-      ...(fw.proposed_objects || []).map(o => o.cli),
-      pol.src_object_cli || '',
-      ...(pol.service_object_cli_blocks || []),
-      fw.proposed_group ? fw.proposed_group.cli : '',
-      pol.cli || '',
-    ].filter(Boolean).join('\n\n');
+    const hasPolicy = !!pol.cli;
+
+    // Labeled sections so the actual policy (name/package/interfaces) is
+    // never buried, unlabeled, inside a wall of object-creation CLI.
+    const sections = [];
+    if ((fw.proposed_objects || []).length || pol.src_object_cli || (pol.service_object_cli_blocks || []).length) {
+      const objCli = [
+        ...(fw.proposed_objects || []).map(o => o.cli),
+        pol.src_object_cli || '',
+        ...(pol.service_object_cli_blocks || []),
+      ].filter(Boolean).join('\n\n');
+      sections.push(`<h4>New Address / Service Objects</h4><pre class="rr-cli-block">${esc(objCli)}</pre>`);
+    }
+    if (fw.proposed_group) {
+      sections.push(`<h4>New Destination Group</h4><pre class="rr-cli-block">${esc(fw.proposed_group.cli)}</pre>`);
+    }
+    if (hasPolicy) {
+      sections.push(`
+        <h4>New Policy</h4>
+        <div class="rr-hint">
+          <strong>Name:</strong> ${esc(pol.name || '')} &middot;
+          <strong>Package:</strong> ${esc(pol.package || '(unknown — verify in FortiManager)')} &middot;
+          <strong>Interfaces:</strong> ${esc(pol.srcintf || 'any')} &rarr; ${esc(pol.dstintf || 'any')} &middot;
+          <strong>Service:</strong> ${esc((pol.service || []).join(', '))}
+        </div>
+        <pre class="rr-cli-block">${esc(pol.cli)}</pre>
+      `);
+    }
+    const cliSections = sections.join('');
     return `
       <div class="rr-section" style="margin-top:1rem">
         <h3>${esc(fw.firewall)} <span class="rr-zone-badge">${esc(fw.verdict)}</span></h3>
         <div>Coverage: ${esc(fw.coverage)}</div>
         ${fw.warnings && fw.warnings.length ? '<ul>' + fw.warnings.map(w => `<li>${esc(w)}</li>`).join('') + '</ul>' : ''}
-        ${cliBlock ? `<pre class="rr-cli-block">${esc(cliBlock)}</pre>` : '<div class="text-muted">No new configuration required.</div>'}
+        ${cliSections || '<div class="text-muted">No new configuration required.</div>'}
       </div>
     `;
   }).join('');
