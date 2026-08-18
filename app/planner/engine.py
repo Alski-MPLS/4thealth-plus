@@ -167,7 +167,9 @@ def _sanitize_object_name_part(value: str) -> str:
     vendor, or category string from breaking out of an `edit "..."` statement
     and injecting arbitrary CLI commands.
     """
-    return "".join(c for c in str(value) if c.isascii() and (c.isalnum() or c in "._*-"))
+    return "".join(
+        c for c in str(value) if c.isascii() and (c.isalnum() or c in "._*-")
+    )
 
 
 def _fqdn_object_name(fqdn_str: str) -> tuple[str, str]:
@@ -181,7 +183,7 @@ def _fqdn_object_name(fqdn_str: str) -> tuple[str, str]:
         name = f"FQDN-{safe}"
         obj_type = "fqdn"
     if len(name) > _FQDN_NAME_MAX:
-        name = name[:_FQDN_NAME_MAX - 3] + "..."
+        name = name[: _FQDN_NAME_MAX - 3] + "..."
     return obj_type, name
 
 
@@ -204,7 +206,7 @@ def _fqdn_group_name(vendor: str, category: str) -> str:
     c = _sanitize_object_name_part(category.replace(" ", "-"))
     name = f"GRP-{v}-{c}-DST"
     if len(name) > _FQDN_NAME_MAX:
-        name = name[:_FQDN_NAME_MAX - 3] + "..."
+        name = name[: _FQDN_NAME_MAX - 3] + "..."
     return name
 
 
@@ -1196,13 +1198,19 @@ def _plan_fqdn_firewall(
         fw_verdict = "new_rule"
 
     fw = FQDNFirewallPlan(
-        firewall=target.device, adom=target.adom,
-        verdict=fw_verdict, src_zone=src_zone,
+        firewall=target.device,
+        adom=target.adom,
+        verdict=fw_verdict,
+        src_zone=src_zone,
         coverage="n/a",
-        covered_entries=[], uncovered_entries=list(request.entries),
-        proposed_objects=[], proposed_group=None,
-        proposed_policy=None, group_append_alternative=None,
-        degraded=False, warnings=list(zone_result.get("notes", [])),
+        covered_entries=[],
+        uncovered_entries=list(request.entries),
+        proposed_objects=[],
+        proposed_group=None,
+        proposed_policy=None,
+        group_append_alternative=None,
+        degraded=False,
+        warnings=list(zone_result.get("notes", [])),
     )
 
     if fw_verdict == "unknown_no_action":
@@ -1232,7 +1240,8 @@ def _plan_fqdn_firewall(
         fw.warnings.append("FQDN rule search degraded — results may be incomplete")
 
     covered_set = {
-        r["fqdn"] for r in cov["results"]
+        r["fqdn"]
+        for r in cov["results"]
         if r["covered"] and r.get("rule_enabled", True)
     }
     fw.covered_entries = [e for e in request.entries if e.fqdn in covered_set]
@@ -1281,25 +1290,36 @@ def _plan_fqdn_firewall(
             )
         seen_names.add(name)
         comment_str = f"{entry.comment or (request.vendor + ' ' + request.category)} - <TICKET_ID>"
-        cli_fn = (cli_gen.fqdn_address_object_cli if obj_type == "fqdn"
-                  else cli_gen.wildcard_fqdn_address_object_cli)
-        proposed_objects.append(FQDNAddressObject(
-            name=name, obj_type=obj_type, value=entry.fqdn,
-            comment=comment_str, cli=cli_fn(name, entry.fqdn, comment_str),
-        ))
+        cli_fn = (
+            cli_gen.fqdn_address_object_cli
+            if obj_type == "fqdn"
+            else cli_gen.wildcard_fqdn_address_object_cli
+        )
+        proposed_objects.append(
+            FQDNAddressObject(
+                name=name,
+                obj_type=obj_type,
+                value=entry.fqdn,
+                comment=comment_str,
+                cli=cli_fn(name, entry.fqdn, comment_str),
+            )
+        )
     fw.proposed_objects = proposed_objects
     fw.warnings.extend(obj_warnings)
 
     # Build address group
     group_name = _fqdn_group_name(request.vendor, request.category)
     existing_obj_names = [
-        r["address_object_name"] for r in cov["results"]
+        r["address_object_name"]
+        for r in cov["results"]
         if r["covered"] and r["address_object_name"]
     ]
     all_member_names = existing_obj_names + [o.name for o in proposed_objects]
     group_comment = f"{request.vendor} {request.category} - <TICKET_ID>"
     fw.proposed_group = FQDNAddrGroup(
-        name=group_name, members=all_member_names, comment=group_comment,
+        name=group_name,
+        members=all_member_names,
+        comment=group_comment,
         cli=cli_gen.addrgrp_create_cli(group_name, all_member_names, warn_replace=True),
     )
 
@@ -1331,15 +1351,21 @@ def _plan_fqdn_firewall(
 
     # Source address object — 'all'/'any' maps to FortiGate built-in; named objects reused as-is
     if request.src_ip.strip().lower() in ("any", "all", ""):
-        src_obj = ObjectPlan(role="source", action="reuse", name="all",
-                             obj_type="builtin", value="all")
+        src_obj = ObjectPlan(
+            role="source", action="reuse", name="all", obj_type="builtin", value="all"
+        )
         fw.warnings.append(
             "Source resolves to the FortiGate built-in 'all' object — this policy "
             "will permit traffic from ANY source. Confirm this is intended."
         )
     elif not _is_valid_ip(request.src_ip):
-        src_obj = ObjectPlan(role="source", action="reuse", name=request.src_ip,
-                             obj_type="named_object", value=request.src_ip)
+        src_obj = ObjectPlan(
+            role="source",
+            action="reuse",
+            name=request.src_ip,
+            obj_type="named_object",
+            value=request.src_ip,
+        )
     else:
         src_obj = _address_object_plan("source", request.src_ip, snapshot)
 
@@ -1355,7 +1381,9 @@ def _plan_fqdn_firewall(
                 svc_name = f"SVC_{entry.protocol.upper()}_{port}"
                 svc_names.append(svc_name)
                 svc_cli_blocks.append(
-                    cli_gen.service_object_cli(svc_name, entry.protocol.lower(), str(port))
+                    cli_gen.service_object_cli(
+                        svc_name, entry.protocol.lower(), str(port)
+                    )
                 )
     if not svc_names:
         svc_names = ["ALL"]
@@ -1411,35 +1439,60 @@ def plan_fqdn_change(
 
     if _src_is_named:
         _src_zone_label = "any" if _src_lower in ("any", "all") else request.src_ip
-        zone_result: dict = {"verdict": "ALLOWED", "src_zones": [_src_zone_label], "notes": []}
+        zone_result: dict = {
+            "verdict": "ALLOWED",
+            "src_zones": [_src_zone_label],
+            "notes": [],
+        }
     else:
         zc = zone_client or _default_zone_client()
         try:
-            zone_result = fetch_zone_verdict(zc, request.src_ip, _INTERNET_SENTINEL, "tcp/443")
+            zone_result = fetch_zone_verdict(
+                zc, request.src_ip, _INTERNET_SENTINEL, "tcp/443"
+            )
         except PlannerDataError as exc:
             zone_warn = f"Zone client unavailable: {exc}"
             fw_plans_degraded: list[FQDNFirewallPlan] = []
             for raw in request.firewalls:
                 device, adom, ok = _parse_fqdn_firewall_spec(raw)
                 if not ok:
-                    fw_plans_degraded.append(FQDNFirewallPlan(
-                        firewall=raw, adom="", verdict="error", src_zone="Unknown",
-                        coverage="n/a", covered_entries=[],
-                        uncovered_entries=list(request.entries),
-                        proposed_objects=[], proposed_group=None, proposed_policy=None,
-                        group_append_alternative=None, degraded=True,
-                        warnings=[f"Invalid firewall spec {raw!r} — expected DEVICE:ADOM"],
-                    ))
+                    fw_plans_degraded.append(
+                        FQDNFirewallPlan(
+                            firewall=raw,
+                            adom="",
+                            verdict="error",
+                            src_zone="Unknown",
+                            coverage="n/a",
+                            covered_entries=[],
+                            uncovered_entries=list(request.entries),
+                            proposed_objects=[],
+                            proposed_group=None,
+                            proposed_policy=None,
+                            group_append_alternative=None,
+                            degraded=True,
+                            warnings=[
+                                f"Invalid firewall spec {raw!r} — expected DEVICE:ADOM"
+                            ],
+                        )
+                    )
                     continue
-                fw_plans_degraded.append(FQDNFirewallPlan(
-                    firewall=device, adom=adom,
-                    verdict="unknown_no_action", src_zone="Unknown",
-                    coverage="n/a", covered_entries=[],
-                    uncovered_entries=list(request.entries),
-                    proposed_objects=[], proposed_group=None, proposed_policy=None,
-                    group_append_alternative=None, degraded=True,
-                    warnings=[zone_warn],
-                ))
+                fw_plans_degraded.append(
+                    FQDNFirewallPlan(
+                        firewall=device,
+                        adom=adom,
+                        verdict="unknown_no_action",
+                        src_zone="Unknown",
+                        coverage="n/a",
+                        covered_entries=[],
+                        uncovered_entries=list(request.entries),
+                        proposed_objects=[],
+                        proposed_group=None,
+                        proposed_policy=None,
+                        group_append_alternative=None,
+                        degraded=True,
+                        warnings=[zone_warn],
+                    )
+                )
             return FQDNChangePlan(request=request, per_firewall=fw_plans_degraded)
 
     perm_warnings = standards.permissiveness_warnings(
@@ -1452,13 +1505,23 @@ def plan_fqdn_change(
     for raw in request.firewalls:
         device, adom, ok = _parse_fqdn_firewall_spec(raw)
         if not ok:
-            fw_plans.append(FQDNFirewallPlan(
-                firewall=raw, adom="", verdict="error", src_zone="Unknown",
-                coverage="n/a", covered_entries=[], uncovered_entries=list(request.entries),
-                proposed_objects=[], proposed_group=None, proposed_policy=None,
-                group_append_alternative=None, degraded=True,
-                warnings=[f"Invalid firewall spec {raw!r} — expected DEVICE:ADOM"],
-            ))
+            fw_plans.append(
+                FQDNFirewallPlan(
+                    firewall=raw,
+                    adom="",
+                    verdict="error",
+                    src_zone="Unknown",
+                    coverage="n/a",
+                    covered_entries=[],
+                    uncovered_entries=list(request.entries),
+                    proposed_objects=[],
+                    proposed_group=None,
+                    proposed_policy=None,
+                    group_append_alternative=None,
+                    degraded=True,
+                    warnings=[f"Invalid firewall spec {raw!r} — expected DEVICE:ADOM"],
+                )
+            )
             continue
         target = TargetFirewall(device=device, adom=adom)
         fw = _plan_fqdn_firewall(target, request, zone_result, fmc)
@@ -1486,11 +1549,14 @@ def to_fqdn_report_payload(plan: FQDNChangePlan) -> dict:
             "covered_entries": [dataclasses.asdict(e) for e in fw.covered_entries],
             "uncovered_entries": [dataclasses.asdict(e) for e in fw.uncovered_entries],
             "proposed_objects": [dataclasses.asdict(o) for o in fw.proposed_objects],
-            "proposed_group": dataclasses.asdict(fw.proposed_group) if fw.proposed_group else None,
+            "proposed_group": dataclasses.asdict(fw.proposed_group)
+            if fw.proposed_group
+            else None,
             "proposed_policy": fw.proposed_policy,
             "group_append_alternative": (
                 dataclasses.asdict(fw.group_append_alternative)
-                if fw.group_append_alternative else None
+                if fw.group_append_alternative
+                else None
             ),
         }
         fw_list.append(fw_dict)

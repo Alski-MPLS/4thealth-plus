@@ -111,17 +111,21 @@ def parse_fqdn_rows(
 
         protocol = str(norm.get("protocol", "TCP")).strip().upper()
         if protocol not in ("TCP", "UDP"):
-            warnings.append(f"Row {i + 1}: unknown protocol {protocol!r}, defaulting to TCP")
+            warnings.append(
+                f"Row {i + 1}: unknown protocol {protocol!r}, defaulting to TCP"
+            )
             protocol = "TCP"
 
-        entries.append(FQDNEntry(
-            fqdn=fqdn_val,
-            is_wildcard=fqdn_val.startswith("*."),
-            ports=ports,
-            protocol=protocol,
-            required=_parse_bool(str(norm.get("required", "yes"))),
-            comment=str(norm.get("comment", "")).strip(),
-        ))
+        entries.append(
+            FQDNEntry(
+                fqdn=fqdn_val,
+                is_wildcard=fqdn_val.startswith("*."),
+                ports=ports,
+                protocol=protocol,
+                required=_parse_bool(str(norm.get("required", "yes"))),
+                comment=str(norm.get("comment", "")).strip(),
+            )
+        )
 
     if not src_ip:
         missing.append("src_ip")
@@ -170,4 +174,6 @@ def parse_fqdn_xlsx(
         if any(v is not None for v in row)
     ]
     wb.close()
-    return parse_fqdn_rows(rows, src_ip=src_ip, ticket_id=ticket_id, firewalls=firewalls)
+    return parse_fqdn_rows(
+        rows, src_ip=src_ip, ticket_id=ticket_id, firewalls=firewalls
+    )

@@ -117,7 +117,9 @@ def policy_addr_append_cli(policy_id: int, key: str, members: list[str]) -> str:
     return f"config firewall policy\n    edit {policy_id}\n{appends}\n    next\nend"
 
 
-def addrgrp_create_cli(name: str, members: list[str], warn_replace: bool = False) -> str:
+def addrgrp_create_cli(
+    name: str, members: list[str], warn_replace: bool = False
+) -> str:
     """CLI to create a new address group with the given members.
 
     When ``warn_replace`` is True a comment is prepended reminding the engineer
@@ -126,12 +128,12 @@ def addrgrp_create_cli(name: str, members: list[str], warn_replace: bool = False
     """
     quoted = " ".join(f'"{m}"' for m in members)
     body = (
-        'config firewall addrgrp\n'
+        "config firewall addrgrp\n"
         f'    edit "{_safe_cli_str(name)}"\n'
-        f'        set member {quoted}\n'
+        f"        set member {quoted}\n"
         '        set comment "<TICKET_ID>"\n'
-        '    next\n'
-        'end'
+        "    next\n"
+        "end"
     )
     if warn_replace:
         warning = (
@@ -157,7 +159,9 @@ def fqdn_address_object_cli(name: str, fqdn_str: str, comment: str = "") -> str:
     return "\n".join(lines)
 
 
-def wildcard_fqdn_address_object_cli(name: str, wildcard_str: str, comment: str = "") -> str:
+def wildcard_fqdn_address_object_cli(
+    name: str, wildcard_str: str, comment: str = ""
+) -> str:
     """CLI block to create an address object of type wildcard-fqdn."""
     safe_wildcard = _safe_cli_str(wildcard_str)
     lines = [

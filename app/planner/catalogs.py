@@ -152,8 +152,12 @@ def search_fqdn_rules(
 
     coverage: dict[str, dict] = {
         f: {
-            "fqdn": f, "covered": False, "address_object_name": None,
-            "via_group": None, "rule_id": None, "rule_name": None,
+            "fqdn": f,
+            "covered": False,
+            "address_object_name": None,
+            "via_group": None,
+            "rule_id": None,
+            "rule_name": None,
             "rule_enabled": False,
         }
         for f in fqdns
@@ -185,26 +189,35 @@ def search_fqdn_rules(
             dst_names = _names(pol.get("dstaddr", []))
 
             pol_fqdns: set[str] = set()
-            dst_group_for: dict[str, str] = {}  # fqdn_str -> first containing group name
+            dst_group_for: dict[
+                str, str
+            ] = {}  # fqdn_str -> first containing group name
 
             for dst_name in dst_names:
                 fqdn_set = fqdn_catalog.fqdns_for_ref(dst_name)
                 if fqdn_set:
                     for f in fqdn_set:
                         pol_fqdns.add(f)
-                        if fqdn_catalog._groups.get(dst_name) and f not in dst_group_for:
+                        if (
+                            fqdn_catalog._groups.get(dst_name)
+                            and f not in dst_group_for
+                        ):
                             dst_group_for[f] = dst_name
 
             for fqdn_str in fqdns:
                 if fqdn_str in pol_fqdns and not coverage[fqdn_str]["covered"]:
-                    coverage[fqdn_str].update({
-                        "covered": True,
-                        "address_object_name": fqdn_catalog.exact_match_name(fqdn_str),
-                        "via_group": dst_group_for.get(fqdn_str),
-                        "rule_id": pol.get("policyid"),
-                        "rule_name": pol.get("name", ""),
-                        "rule_enabled": pol_enabled,
-                    })
+                    coverage[fqdn_str].update(
+                        {
+                            "covered": True,
+                            "address_object_name": fqdn_catalog.exact_match_name(
+                                fqdn_str
+                            ),
+                            "via_group": dst_group_for.get(fqdn_str),
+                            "rule_id": pol.get("policyid"),
+                            "rule_name": pol.get("name", ""),
+                            "rule_enabled": pol_enabled,
+                        }
+                    )
 
     result["results"] = list(coverage.values())
 
