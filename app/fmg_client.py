@@ -1412,3 +1412,51 @@ class FMGClient:
             return {}
         except Exception:
             return {}
+
+    def get_device_ipsec_phase1(self, adom: str, device_name: str) -> list:
+        """Return vpn.ipsec/phase1-interface config from all VDOMs via FMG proxy."""
+        try:
+            r = self._proxy(
+                adom, device_name, "/api/v2/cmdb/vpn.ipsec/phase1-interface?vdom=*"
+            )
+            payload = r.get("payload", [])
+            if isinstance(payload, list):
+                if payload and isinstance(payload[0], dict) and "results" in payload[0]:
+                    flat = []
+                    for item in payload:
+                        vname = item.get("vdom", "root")
+                        for entry in item.get("results", []):
+                            if isinstance(entry, dict):
+                                entry.setdefault("vdom", vname)
+                                flat.append(entry)
+                    return flat
+                return [i for i in payload if isinstance(i, dict)]
+            if isinstance(payload, dict):
+                return list(payload.values())
+            return []
+        except Exception:
+            return []
+
+    def get_device_ipsec_phase2(self, adom: str, device_name: str) -> list:
+        """Return vpn.ipsec/phase2-interface config from all VDOMs via FMG proxy."""
+        try:
+            r = self._proxy(
+                adom, device_name, "/api/v2/cmdb/vpn.ipsec/phase2-interface?vdom=*"
+            )
+            payload = r.get("payload", [])
+            if isinstance(payload, list):
+                if payload and isinstance(payload[0], dict) and "results" in payload[0]:
+                    flat = []
+                    for item in payload:
+                        vname = item.get("vdom", "root")
+                        for entry in item.get("results", []):
+                            if isinstance(entry, dict):
+                                entry.setdefault("vdom", vname)
+                                flat.append(entry)
+                    return flat
+                return [i for i in payload if isinstance(i, dict)]
+            if isinstance(payload, dict):
+                return list(payload.values())
+            return []
+        except Exception:
+            return []

@@ -218,7 +218,7 @@ Runs configurable security checks against every device in a selected ADOM. Combi
 
 **Protocol severity configuration:** Create `protocol_severity.json` at the project root (gitignored) to override default protocol classifications. See `protocol_severity.example.json` for all defaults and valid values (`secure`, `insecure`, `info`, `null`). Overrides take effect on app restart.
 
-**Implemented checks (18 total):**
+**Implemented checks (26 total):**
 
 | Key | Name | CIS Level | data_keys | Parameterised |
 |-----|------|-----------|-----------|---------------|
@@ -227,6 +227,7 @@ Runs configurable security checks against every device in a selected ADOM. Combi
 | `syslog_config` | Syslog Configuration | L1 | `syslog` | Yes (expected IPs) |
 | `trusted_hosts` | Trusted Hosts on Admin Accounts | L1 | `admins` | No |
 | `default_admin` | Default 'admin' Account | L1 | `admins` | No |
+| `admin_mfa` | Admin Two-Factor Authentication | L1 | `admins` | No |
 | `idle_timeout` | Admin Idle Timeout | L1 | `system_global` | Yes (max minutes) |
 | `lockout_threshold` | Admin Lockout Threshold | L1 | `system_global` | Yes (max attempts) |
 | `password_length` | Password Minimum Length | L1 | `password_policy` | Yes (min chars) |
@@ -240,8 +241,15 @@ Runs configurable security checks against every device in a selected ADOM. Combi
 | `ssh_ciphers` | SSH Strong Ciphers | L2 | `system_global` | No |
 | `firmware_version` | Firmware Version Compliance | L1 | `device_meta` | Yes (min version) |
 | `ha_sync` | HA Sync Status | L2 | `ha_status` | No |
+| `hostname_changed` | Hostname Changed From Default | L1 | `system_global` | No |
+| `admin_port_nondefault` | Non-Default Admin Port | L1 | `system_global` | No |
+| `prelogin_banner` | Pre-Login Banner Enabled | L1 | `system_global` | No |
+| `timezone_set` | Timezone Explicitly Configured | L1 | `system_global` | No |
+| `vpn_weak_crypto` | VPN Weak Crypto (Phase1/Phase2) | L2 | `ipsec_phase1`, `ipsec_phase2` | No |
+| `vpn_pfs` | VPN Perfect Forward Secrecy | L2 | `ipsec_phase2` | No |
+| `vpn_ike_version` | VPN IKE Version | L2 | `ipsec_phase1` | No |
 
-Note: `system_global` is fetched once and shared by `idle_timeout`, `lockout_threshold`, `tls_version`, and `ssh_ciphers`. `admins` is shared by `trusted_hosts` and `default_admin`. `log_disk` is shared by `log_disk` and `log_severity`. `device_meta` is populated from the device list (no extra API call).
+Note: `system_global` is fetched once and shared by `idle_timeout`, `lockout_threshold`, `tls_version`, `ssh_ciphers`, `hostname_changed`, `admin_port_nondefault`, `prelogin_banner`, and `timezone_set`. `admins` is shared by `trusted_hosts`, `default_admin`, and `admin_mfa`. `log_disk` is shared by `log_disk` and `log_severity`. `device_meta` is populated from the device list (no extra API call). `ipsec_phase1`/`ipsec_phase2` fetch `vpn.ipsec/phase1-interface` and `vpn.ipsec/phase2-interface` from all VDOMs via FMG proxy (`FMGClient.get_device_ipsec_phase1`/`get_device_ipsec_phase2`); `ipsec_phase1` is shared by `vpn_weak_crypto` and `vpn_ike_version`, `ipsec_phase2` by `vpn_weak_crypto` and `vpn_pfs`.
 
 **Check engine — `app/device_review.py`:**
 
