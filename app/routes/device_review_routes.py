@@ -192,6 +192,16 @@ def _fetch_device_data(
             data["ha_status"] = client.get_device_ha_status(adom, device)
         except Exception:
             data["ha_status"] = {}
+    if "ipsec_phase1" in data_keys:
+        try:
+            data["ipsec_phase1"] = client.get_device_ipsec_phase1(adom, device)
+        except Exception:
+            data["ipsec_phase1"] = []
+    if "ipsec_phase2" in data_keys:
+        try:
+            data["ipsec_phase2"] = client.get_device_ipsec_phase2(adom, device)
+        except Exception:
+            data["ipsec_phase2"] = []
     # device_meta is passed in from the caller (already fetched from device list)
     if "device_meta" in data_keys:
         data["device_meta"] = device_meta or {}

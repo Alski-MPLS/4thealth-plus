@@ -5,6 +5,16 @@ All notable changes to 4THealth+ are documented in this file.
 ## [Unreleased]
 
 ### Added
+- 8 new Device Review CIS checks, ported from the sibling
+  [4THealth](https://github.com/Alski-MPLS/4thealth) repo (18 -> 26 total
+  checks): `admin_mfa`, `hostname_changed`, `admin_port_nondefault`,
+  `prelogin_banner`, `timezone_set`, `vpn_weak_crypto`, `vpn_pfs`, and
+  `vpn_ike_version`. The 3 VPN checks add `FMGClient.get_device_ipsec_phase1()`/
+  `get_device_ipsec_phase2()` and new `ipsec_phase1`/`ipsec_phase2` data keys.
+  Ported with upstream's same-day field-name fixes already applied
+  (`admin-sport`/`adminsport` and `pre-login-banner`/`preloginbanner`
+  fallback lookups, `None`-sentinel for timezone so a valid `0` isn't
+  misread as unset).
 - FQDN Allowlist mode in Rule Validation's AI Assist panel: submit a vendor's
   FQDN/wildcard-FQDN allowlist request — manual entry rows or an uploaded
   `.xlsx` sheet — and get a deterministic per-firewall coverage analysis plus

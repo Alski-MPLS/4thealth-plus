@@ -40,6 +40,7 @@ import functools
 import ipaddress
 import logging as _logging
 import pathlib as _pathlib
+import re as _re
 import socket
 from typing import Any
 
@@ -519,6 +520,56 @@ def _run_default_admin(device_name: str, device_data: dict, params: dict) -> lis
             _CHECK_DEFAULT_ADMIN,
             "PASS",
             "No active built-in 'admin' account found",
+        )
+    ]
+
+
+# ── Check: Admin two-factor authentication (CIS) ─────────────────────────────
+
+_CHECK_ADMIN_MFA = "Admin Two-Factor Authentication (CIS)"
+
+
+def _run_admin_mfa(device_name: str, device_data: dict, params: dict) -> list[dict]:
+    admins = device_data.get("admins")  # None = not fetched; [] = explicitly empty
+    if admins is None:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_MFA,
+                "CONFIG_MISSING",
+                "Admin data could not be retrieved",
+            )
+        ]
+    if not isinstance(admins, list):
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_MFA,
+                "FAIL",
+                "Admin list could not be retrieved",
+            )
+        ]
+    no_mfa = [
+        str(a.get("name", "?"))
+        for a in admins
+        if isinstance(a, dict)
+        and str(a.get("two-factor", "disable")).lower() == "disable"
+    ]
+    if no_mfa:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_MFA,
+                "FAIL",
+                f"Admin account(s) without MFA: {', '.join(no_mfa)}",
+            )
+        ]
+    return [
+        _cis_row(
+            device_name,
+            _CHECK_ADMIN_MFA,
+            "PASS",
+            f"All {len(admins)} admin account(s) have MFA enabled",
         )
     ]
 
@@ -1349,6 +1400,355 @@ def _run_ha_sync(device_name: str, device_data: dict, params: dict) -> list[dict
     ]
 
 
+# ── Check: Hostname changed from default (CIS) ────────────────────────────────
+
+_CHECK_HOSTNAME = "Hostname Changed From Default (CIS)"
+_DEFAULT_HOSTNAME_RE = _re.compile(r"^fgt\d+$", _re.IGNORECASE)
+
+
+def _run_hostname_changed(
+    device_name: str, device_data: dict, params: dict
+) -> list[dict]:
+    cfg = device_data.get("system_global", {})
+    if not cfg:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_HOSTNAME,
+                "FAIL",
+                "system/global could not be retrieved",
+            )
+        ]
+    raw_hostname = cfg.get("hostname")
+    if raw_hostname is None:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_HOSTNAME,
+                "CONFIG_MISSING",
+                "Hostname field not found in system/global response",
+            )
+        ]
+    hostname = str(raw_hostname).strip()
+    if (
+        not hostname
+        or hostname.lower() in ("fortigate", "fortigate-vm")
+        or _DEFAULT_HOSTNAME_RE.match(hostname)
+    ):
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_HOSTNAME,
+                "FAIL",
+                f"Hostname '{hostname or '(empty)'}' appears to be a factory default — set a unique name",
+            )
+        ]
+    return [_cis_row(device_name, _CHECK_HOSTNAME, "PASS", f"Hostname: {hostname}")]
+
+
+# ── Check: Non-default admin ports (CIS) ─────────────────────────────────────
+
+_CHECK_ADMIN_PORT = "Non-Default Admin Port (CIS)"
+
+
+def _run_admin_port_nondefault(
+    device_name: str, device_data: dict, params: dict
+) -> list[dict]:
+    cfg = device_data.get("system_global", {})
+    if not cfg:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_PORT,
+                "CONFIG_MISSING",
+                "system/global could not be retrieved",
+            )
+        ]
+    https_port = (
+        cfg.get("admin-sport") or cfg.get("admin_sport") or cfg.get("adminsport")
+    )
+    http_port = cfg.get("admin-port") or cfg.get("admin_port") or cfg.get("adminport")
+    if https_port is None and http_port is None:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_PORT,
+                "CONFIG_MISSING",
+                "Admin port fields not found in system/global response",
+            )
+        ]
+    warnings = []
+    try:
+        if https_port is not None and int(https_port) == 443:
+            warnings.append("HTTPS admin port is still default (443)")
+        if http_port is not None and int(http_port) == 80:
+            warnings.append("HTTP admin port is still default (80)")
+    except (ValueError, TypeError):
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_ADMIN_PORT,
+                "CONFIG_MISSING",
+                "Admin port value is non-numeric — cannot verify",
+            )
+        ]
+    if warnings:
+        return [_cis_row(device_name, _CHECK_ADMIN_PORT, "WARN", "; ".join(warnings))]
+    parts = []
+    if https_port:
+        parts.append(f"HTTPS:{https_port}")
+    if http_port:
+        parts.append(f"HTTP:{http_port}")
+    desc = f" ({', '.join(parts)})" if parts else ""
+    return [
+        _cis_row(
+            device_name,
+            _CHECK_ADMIN_PORT,
+            "PASS",
+            f"Admin ports changed from defaults{desc}",
+        )
+    ]
+
+
+# ── Check: Pre-login banner (CIS) ────────────────────────────────────────────
+
+_CHECK_BANNER = "Pre-Login Banner Enabled (CIS)"
+
+
+def _run_prelogin_banner(
+    device_name: str, device_data: dict, params: dict
+) -> list[dict]:
+    cfg = device_data.get("system_global", {})
+    if not cfg:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_BANNER,
+                "FAIL",
+                "system/global could not be retrieved",
+            )
+        ]
+    val = str(
+        cfg.get("pre-login-banner")
+        or cfg.get("pre_login_banner")
+        or cfg.get("preloginbanner")
+        or "disable"
+    ).lower()
+    if val != "enable":
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_BANNER,
+                "FAIL",
+                "Pre-login banner is disabled — enable it to display a legal/acceptable-use notice",
+            )
+        ]
+    return [_cis_row(device_name, _CHECK_BANNER, "PASS", "Pre-login banner is enabled")]
+
+
+# ── Check: Timezone explicitly set (CIS) ─────────────────────────────────────
+
+_CHECK_TIMEZONE = "Timezone Explicitly Configured (CIS)"
+
+
+def _run_timezone_set(device_name: str, device_data: dict, params: dict) -> list[dict]:
+    cfg = device_data.get("system_global", {})
+    if not cfg:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_TIMEZONE,
+                "CONFIG_MISSING",
+                "system/global could not be retrieved",
+            )
+        ]
+    tz = cfg.get("timezone")
+    if tz is None or str(tz).strip() == "":
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_TIMEZONE,
+                "CONFIG_MISSING",
+                "Timezone not set — affects log timestamp correlation across devices",
+            )
+        ]
+    return [_cis_row(device_name, _CHECK_TIMEZONE, "PASS", f"Timezone: {tz}")]
+
+
+# ── VPN / IPsec Security Checks ───────────────────────────────────────────────
+
+_WEAK_DH_GROUPS: frozenset[int] = frozenset({1, 2, 5})
+_WEAK_VPN_TOKENS: frozenset[str] = frozenset({"des", "3des", "md5"})
+_CHECK_VPN_CRYPTO = "VPN Weak Crypto (Phase1/Phase2) (CIS)"
+_CHECK_VPN_PFS = "VPN Perfect Forward Secrecy (CIS)"
+_CHECK_VPN_IKE = "VPN IKE Version (CIS)"
+
+
+def _vpn_proposal_weak_tokens(proposal: str) -> list[str]:
+    """Return deduplicated weak token names found in a proposal string."""
+    seen: dict[str, None] = {}
+    for token in proposal.lower().replace(",", " ").split():
+        for part in token.split("-"):
+            if part in _WEAK_VPN_TOKENS:
+                seen[part] = None
+    return list(seen)
+
+
+def _vpn_dhgrp_weak(dhgrp: str) -> list[int]:
+    """Return weak DH group numbers found in a space-separated dhgrp string."""
+    weak = []
+    for token in str(dhgrp).split():
+        try:
+            g = int(token)
+            if g in _WEAK_DH_GROUPS:
+                weak.append(g)
+        except ValueError:
+            pass
+    return weak
+
+
+def _run_vpn_weak_crypto(
+    device_name: str, device_data: dict, params: dict
+) -> list[dict]:
+    phase1 = device_data.get("ipsec_phase1") or []
+    phase2 = device_data.get("ipsec_phase2") or []
+    if not phase1 and not phase2:
+        return [
+            _cis_row(
+                device_name, _CHECK_VPN_CRYPTO, "INFO", "No IPsec tunnels configured"
+            )
+        ]
+
+    weak_findings: list[str] = []
+    for entry in phase1:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name", "?")
+        weak_t = _vpn_proposal_weak_tokens(str(entry.get("proposal", "")))
+        weak_g = _vpn_dhgrp_weak(str(entry.get("dhgrp", "")))
+        parts = []
+        if weak_t:
+            parts.append(f"weak algo: {', '.join(weak_t)}")
+        if weak_g:
+            parts.append(f"weak DH group(s): {', '.join(str(g) for g in weak_g)}")
+        if parts:
+            weak_findings.append(f"{name} ({'; '.join(parts)})")
+
+    for entry in phase2:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name", "?")
+        weak_t = _vpn_proposal_weak_tokens(str(entry.get("proposal", "")))
+        if weak_t:
+            weak_findings.append(f"{name} [ph2] (weak algo: {', '.join(weak_t)})")
+
+    total = len(phase1) + len(phase2)
+    if weak_findings:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_VPN_CRYPTO,
+                "FAIL",
+                f"Weak crypto in {len(weak_findings)} tunnel(s): {'; '.join(weak_findings)}",
+            )
+        ]
+    return [
+        _cis_row(
+            device_name,
+            _CHECK_VPN_CRYPTO,
+            "PASS",
+            f"No weak crypto across {total} phase1/phase2 entries",
+        )
+    ]
+
+
+def _run_vpn_pfs(device_name: str, device_data: dict, params: dict) -> list[dict]:
+    phase2 = device_data.get("ipsec_phase2") or []
+    if not phase2:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_VPN_PFS,
+                "INFO",
+                "No IPsec phase2 tunnels configured",
+            )
+        ]
+    no_pfs = [
+        str(e.get("name", "?"))
+        for e in phase2
+        if isinstance(e, dict) and str(e.get("pfs", "enable")).lower() == "disable"
+    ]
+    if no_pfs:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_VPN_PFS,
+                "WARN",
+                f"PFS disabled on phase2 tunnel(s): {', '.join(no_pfs)}",
+            )
+        ]
+    return [
+        _cis_row(
+            device_name,
+            _CHECK_VPN_PFS,
+            "PASS",
+            f"PFS enabled on all {len(phase2)} phase2 tunnel(s)",
+        )
+    ]
+
+
+def _run_vpn_ike_version(
+    device_name: str, device_data: dict, params: dict
+) -> list[dict]:
+    phase1 = device_data.get("ipsec_phase1") or []
+    if not phase1:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_VPN_IKE,
+                "INFO",
+                "No IPsec phase1 tunnels configured",
+            )
+        ]
+
+    aggressive: list[str] = []
+    ikev1_main: list[str] = []
+    for entry in phase1:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name", "?")
+        ver = str(entry.get("ike-version") or entry.get("ike_version") or "1")
+        mode = str(entry.get("mode", "main")).lower()
+        if ver == "1":
+            if mode == "aggressive":
+                aggressive.append(name)
+            else:
+                ikev1_main.append(name)
+
+    if aggressive:
+        detail = f"IKEv1 aggressive mode (PSK hash exposed pre-auth): {', '.join(aggressive)}"
+        if ikev1_main:
+            detail += f"; IKEv1 main mode: {', '.join(ikev1_main)}"
+        return [_cis_row(device_name, _CHECK_VPN_IKE, "FAIL", detail)]
+    if ikev1_main:
+        return [
+            _cis_row(
+                device_name,
+                _CHECK_VPN_IKE,
+                "WARN",
+                f"IKEv1 (legacy) on tunnel(s): {', '.join(ikev1_main)} — upgrade to IKEv2",
+            )
+        ]
+    return [
+        _cis_row(
+            device_name,
+            _CHECK_VPN_IKE,
+            "PASS",
+            f"All {len(phase1)} phase1 tunnel(s) use IKEv2",
+        )
+    ]
+
+
 # ── Check registry ────────────────────────────────────────────────────────────
 
 CHECKS: list[dict[str, Any]] = [
@@ -1408,6 +1808,14 @@ CHECKS: list[dict[str, Any]] = [
         "data_keys": ["admins"],
         "params_schema": [],
         "run": _run_default_admin,
+    },
+    {
+        "key": "admin_mfa",
+        "name": "Admin Two-Factor Authentication (CIS)",
+        "description": "CIS L1: flag any admin account with two-factor authentication disabled",
+        "data_keys": ["admins"],
+        "params_schema": [],
+        "run": _run_admin_mfa,
     },
     {
         "key": "idle_timeout",
@@ -1580,6 +1988,64 @@ CHECKS: list[dict[str, Any]] = [
         "data_keys": ["ha_status"],
         "params_schema": [],
         "run": _run_ha_sync,
+    },
+    # ── Hardening ──────────────────────────────────────────────────────────────
+    {
+        "key": "hostname_changed",
+        "name": "Hostname Changed From Default (CIS)",
+        "description": "CIS L1: flag if hostname is still a factory default (FortiGate, FGT + serial pattern)",
+        "data_keys": ["system_global"],
+        "params_schema": [],
+        "run": _run_hostname_changed,
+    },
+    {
+        "key": "admin_port_nondefault",
+        "name": "Non-Default Admin Port (CIS)",
+        "description": "CIS L1: warn if admin HTTPS port is still 443 or HTTP port is still 80",
+        "data_keys": ["system_global"],
+        "params_schema": [],
+        "run": _run_admin_port_nondefault,
+    },
+    {
+        "key": "prelogin_banner",
+        "name": "Pre-Login Banner Enabled (CIS)",
+        "description": "CIS L1: fail if pre-login banner is disabled — a legal notice should be displayed",
+        "data_keys": ["system_global"],
+        "params_schema": [],
+        "run": _run_prelogin_banner,
+    },
+    {
+        "key": "timezone_set",
+        "name": "Timezone Explicitly Configured (CIS)",
+        "description": "CIS L1: flag if timezone is not set — affects log timestamp correlation across devices",
+        "data_keys": ["system_global"],
+        "params_schema": [],
+        "run": _run_timezone_set,
+    },
+    # ── VPN / IPsec ────────────────────────────────────────────────────────────
+    {
+        "key": "vpn_weak_crypto",
+        "name": "VPN Weak Crypto (Phase1/Phase2) (CIS)",
+        "description": "CIS L2: flag IPsec tunnels using weak encryption (DES/3DES), weak hash (MD5), or weak DH groups (1/2/5)",
+        "data_keys": ["ipsec_phase1", "ipsec_phase2"],
+        "params_schema": [],
+        "run": _run_vpn_weak_crypto,
+    },
+    {
+        "key": "vpn_pfs",
+        "name": "VPN Perfect Forward Secrecy (CIS)",
+        "description": "CIS L2: warn if any phase2 IPsec tunnel has PFS disabled",
+        "data_keys": ["ipsec_phase2"],
+        "params_schema": [],
+        "run": _run_vpn_pfs,
+    },
+    {
+        "key": "vpn_ike_version",
+        "name": "VPN IKE Version (CIS)",
+        "description": "CIS L2: fail if any phase1 uses IKEv1 aggressive mode; warn for IKEv1 main mode",
+        "data_keys": ["ipsec_phase1"],
+        "params_schema": [],
+        "run": _run_vpn_ike_version,
     },
 ]
 
